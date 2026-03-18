@@ -136,7 +136,7 @@ void Gimbal::targetOrientationPlan()
     switch (m_gimbalMode) {
         case MANUAL_CONTROL:
             setYawAngle(m_yawTargetAngle - rcStickDeadZoneFilter(m_remoteControl.getRightStickX()) * DT7_STICK_YAW_SENSITIVITY*0.6);
-            setPitchAngle(m_pitchTargetAngle - rcStickDeadZoneFilter(m_remoteControl.getRightStickY()) * DT7_STICK_PITCH_SENSITIVITY*0.6);//0.6为遥控器灵敏度精度经检查无法精确到小数点后三位，故再加神秘小常数
+            setPitchAngle(m_pitchTargetAngle - rcStickDeadZoneFilter(m_remoteControl.getRightStickY()) * DT7_STICK_PITCH_SENSITIVITY*0.2);
             break;
 
         case AUTO_CONTROL:
@@ -235,7 +235,8 @@ void Gimbal::pitchControl()
 
         case MANUAL_CONTROL:
         case AUTO_CONTROL: { // 手动控制和自动控制都使用同样的闭环控制
-            fp32 fdbData[2] = {GSRLMath::normalizeDeltaAngle(m_pitchTargetAngle - m_eulerAngle.y), -m_imu->getGyro().y};
+            // fp32 fdbData[2] = {GSRLMath::normalizeDeltaAngle(m_pitchTargetAngle - m_eulerAngle.y), -m_imu->getGyro().y};
+            fp32 fdbData[2] = {-m_pitchTargetAngle + m_eulerAngle.y, -m_imu->getGyro().y};
             fp32 pidOutput  = m_pitchMotor->externalClosedloopControl(0.0f, fdbData, 2);
 #ifdef PITCH_GRAVITY_COMPENSATE
             fp32 totalTorque = gravityCompensate(pidOutput, m_pitchMotor->getCurrentAngle(), PITCH_GRAVITY_COMPENSATE);
@@ -520,7 +521,7 @@ void Gimbal::transmitGimbalMotorData()
 {
     HAL_CAN_AddTxMessage(&hcan1, m_yawMotor->getMotorControlHeader(), (*m_yawMotor + *m_rammerMotor).getMotorControlData(), NULL);
     HAL_CAN_AddTxMessage(&hcan2, m_pitchMotor->getMotorControlHeader(), m_pitchMotor->getMotorControlData(), NULL);
-    HAL_CAN_AddTxMessage(&hcan1, m_frictionLeftMotor->getMotorControlHeader(), (*m_frictionLeftMotor + *m_frictionRightMotor).getMotorControlData(), NULL);
+    HAL_CAN_AddTxMessage(&hcan2, m_frictionLeftMotor->getMotorControlHeader(), (*m_frictionLeftMotor + *m_frictionRightMotor).getMotorControlData(), NULL);
 }
 
 inline void Gimbal::setPitchAngle(const fp32 &targetAngle)
