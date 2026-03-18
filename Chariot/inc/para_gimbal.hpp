@@ -39,26 +39,26 @@ vofa.AddParameterListener("rammer_d", [](fp32 *val) {
 });
 */
 // 云台Yaw电机 (GM6020)
-#define YAW_OUTER_KP                  13.0f    // 40.0f
+#define YAW_OUTER_KP                  35.0f    // 40.0f
 #define YAW_OUTER_KI                  0.0f     // 0.0f
-#define YAW_OUTER_KD                  0.0f     // 300.0f
-#define YAW_OUTER_OUT_LIMIT           15.0f    // 15.0f
+#define YAW_OUTER_KD                  1.0f     // 300.0f
+#define YAW_OUTER_OUT_LIMIT           50.0f    // 15.0f
 #define YAW_OUTER_IOUT_LIMIT          0.0f     // 0.0f
-#define YAW_INNER_KP                  7000.0f  // 7000.0f
+#define YAW_INNER_KP                  15000.0f  // 7000.0f
 #define YAW_INNER_KI                  0.0f     // 0.0f 
-#define YAW_INNER_KD                  1.0f     // 250.0f
-#define YAW_INNER_OUT_LIMIT           25000.0f // 25000.0f
+#define YAW_INNER_KD                  0.0f     // 250.0f
+#define YAW_INNER_OUT_LIMIT           16384.0f // 25000.0f
 #define YAW_INNER_IOUT_LIMIT          0.0f     // 10000.0f
-#define YAW_INNER_LOWPASS_FILTER_PARA 0.9f     // 0.4f
+#define YAW_INNER_LOWPASS_FILTER_PARA 1.0f     // 0.4f
 // 云台Pitch电机(有nuc版)
-#define PITCH_OUTER_KP                  30.0f // 外环
+#define PITCH_OUTER_KP                  15.0f // 外环
 #define PITCH_OUTER_KI                  0.0f
-#define PITCH_OUTER_KD                  0.04f
-#define PITCH_OUTER_OUT_LIMIT           5.5f
+#define PITCH_OUTER_KD                  0.0f
+#define PITCH_OUTER_OUT_LIMIT           18.0f
 #define PITCH_OUTER_IOUT_LIMIT          0.1f
-#define PITCH_INNER_KP                  0.38f // 内环
+#define PITCH_INNER_KP                  0.35f // 内环
 #define PITCH_INNER_KI                  0.0f
-#define PITCH_INNER_KD                  0.01f
+#define PITCH_INNER_KD                  0.05f
 #define PITCH_INNER_OUT_LIMIT           5.0f
 #define PITCH_INNER_IOUT_LIMIT          0.0f
 #define PITCH_INNER_LOWPASS_FILTER_PARA 1.0f
@@ -122,8 +122,8 @@ vofa.AddParameterListener("rammer_d", [](fp32 *val) {
 /******************************************************************************
  *                            云台角度限制
  ******************************************************************************/
-#define PITCH_UPPER_LIMIT 0.17f
-#define PITCH_LOWER_LIMIT -0.32f
+#define PITCH_UPPER_LIMIT 0.20f
+#define PITCH_LOWER_LIMIT -0.52f
 // #define PITCH_UPPER_LIMIT -3.0f
 // #define PITCH_LOWER_LIMIT 3.0f   
 #define YAW_UPPER_LIMIT   0.78f

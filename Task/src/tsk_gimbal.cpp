@@ -84,7 +84,7 @@ SimplePID rammerPID(SimplePID::PID_POSITION, rammerParam);
 
 /* Motor ---------------------------------------------*/
 
-MotorGM6020 yawMotor(1, &yawPID, 0);
+MotorGM6020 yawMotor(3, &yawPID, 0);
 MotorDM4310 pitchMotor(1, 3, 3.141593f, 30, 10, &pitchPID);
 MotorM2006 rammerMotor(6, &rammerPID, 0, 36);
 MotorM3508 leftFrictionMotor(4, &leftFrictionPID);
