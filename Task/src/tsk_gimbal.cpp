@@ -74,13 +74,20 @@ SimplePID leftFrictionPID(SimplePID::PID_POSITION, leftfrictionPIDParam);
 SimplePID rightFrictionPID(SimplePID::PID_POSITION, rightfrictionPIDParam);
 // Rammer
 // 使用双环PID：外环(位置) -> 内环(速度) -> 电流
-SimplePID::PIDParam rammerParam = {
-    RAMMER_KP,
-    RAMMER_KI,
-    RAMMER_KD,
-    RAMMER_OUT_LIMIT,
-    RAMMER_IOUT_LIMIT};
-SimplePID rammerPID(SimplePID::PID_POSITION, rammerParam);
+CascadePID::PIDParam rammerOuterParam = {
+    RAMMER_OUTER_KP,
+    RAMMER_OUTER_KI,
+    RAMMER_OUTER_KD,
+    RAMMER_OUTER_OUT_LIMIT,
+    RAMMER_OUTER_IOUT_LIMIT};
+CascadePID::PIDParam rammerInnerParam = {
+    RAMMER_INNER_KP,
+    RAMMER_INNER_KI,
+    RAMMER_INNER_KD,
+    RAMMER_INNER_OUT_LIMIT,
+    RAMMER_INNER_IOUT_LIMIT};
+LowPassFilter<fp32> rammerInnerLPF(RAMMER_INNER_LOWPASS_FILTER_PARA);
+CascadePID rammerPID(rammerOuterParam, rammerInnerParam, nullptr, &rammerInnerLPF );
 
 /* Motor ---------------------------------------------*/
 
@@ -90,7 +97,7 @@ MotorM2006 rammerMotor(6, &rammerPID, 0, 36);
 MotorM3508 leftFrictionMotor(4, &leftFrictionPID);
 MotorM3508 rightFrictionMotor(1, &rightFrictionPID);
 
-Vofa<4> vofa;
+Vofa<12> vofa;
 
 /******************************************************************************
  *                            IMU相关
@@ -121,60 +128,19 @@ extern "C" void gimbal_task(void *argument)
     CAN_Init(&hcan1, can1RxCallback);       // 初始化CAN1
     UART_Init(&huart3, dr16RxCallback, 36); // 初始化DR16串口
     vofa.Init();
-
-    // vofa.AddParameterListener目前未实现，暂时注释掉
-
-    /*vofa.AddParameterListener("IKP", [](fp32 *newValue) {
-        // 这里可以处理新的参数值，例如打印或应用到系统中
-        printf("Received new value for 'IKP': %f\n", *newValue);
-        rammerInnerParam.Kp = *newValue;                        // 将新的Kp值应用到rammer内环PID参数
-        rammerPID.getInnerLoop().pidSetParam(rammerInnerParam); // 更新PID控制器的参数
-    });
-    vofa.AddParameterListener("IKI", [](fp32 *newValue) {
-        printf("Received new value for 'IKI': %f\n", *newValue);
-        rammerInnerParam.Ki = *newValue;                        // 将新的Ki值应用到rammer内环PID参数
-        rammerPID.getInnerLoop().pidSetParam(rammerInnerParam); // 更新PID控制器的参数
-    });
-    vofa.AddParameterListener("IKD", [](fp32 *newValue) {
-        printf("Received new value for 'IKD': %f\n", *newValue);
-        rammerInnerParam.Kd = *newValue;                        // 将新的Kd值应用到rammer内环PID参数
-        rammerPID.getInnerLoop().pidSetParam(rammerInnerParam); // 更新PID控制器的参数
-    });
-    vofa.AddParameterListener("OKP", [](fp32 *newValue) {
-        printf("Received new value for 'OKP': %f\n", *newValue);
-        rammerOuterParam.Kp = *newValue;                        // 将新的Kp值应用到rammer外环PID参数
-        rammerPID.getOuterLoop().pidSetParam(rammerOuterParam); // 更新PID控制器的参数
-    });
-    vofa.AddParameterListener("OKI", [](fp32 *newValue) {
-        printf("Received new value for 'OKI': %f\n", *newValue);
-        rammerOuterParam.Ki = *newValue;                        // 将新的Ki值应用到rammer外环PID参数
-        rammerPID.getOuterLoop().pidSetParam(rammerOuterParam); // 更新PID控制器的参数
-    });
-    vofa.AddParameterListener("OKD", [](fp32 *newValue) {
-        printf("Received new value for 'OKD': %f\n", *newValue);
-        rammerOuterParam.Kd = *newValue;                        // 将新的Kd值应用到rammer外环PID参数
-        rammerPID.getOuterLoop().pidSetParam(rammerOuterParam); // 更新PID控制器的参数
-    });*/
-
     TickType_t taskLastWakeTime = xTaskGetTickCount(); // 获取任务开始时间
     gimbal.init();
     // pitchPID.setInnerLoopOutputPolarity(false);
     // pitchMotor.setControllerOutputPolarity(false);
-
-    // 拨弹电机PID极性反转
-    //rammerMotor.setControllerOutputPolarity(false);
-
     while (1) {
-        //printf("Hello, World!\n");
-
-        // motor.openloopControl(0.0f); // motor未定义
-        // transmitMotorsControlData(); // 函数未定义
         gimbal.controlLoop();
-        /*vofa.writeData((fp32)rammerMotor.getCurrentTorqueCurrent());
-        vofa.writeData(rammerMotor.getCurrentAngle());
+        vofa.writeData(rammerPID.getOuterLoop().pidGetData().setPoint);
+        vofa.writeData(rammerPID.getOuterLoop().pidGetData().feedBackData);
         vofa.writeData(rammerPID.getOuterLoop().pidGetData().output);
         vofa.writeData(rammerPID.getInnerLoop().pidGetData().output);
-        vofa.sendFrame();*/
+        vofa.writeData((fp32)rammerMotor.getCurrentTorqueCurrent());
+        vofa.writeData(rammerMotor.getCurrentAngle());
+        vofa.sendFrame();
         vTaskDelayUntil(&taskLastWakeTime, 1); // 确保任务以定周期1ms运行
     }
 }

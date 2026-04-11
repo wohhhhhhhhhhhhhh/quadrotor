@@ -147,7 +147,7 @@ void Gimbal::targetOrientationPlan()
     }
 }
 
-void Gimbal::shootPlan()
+/*void Gimbal::shootPlan()
 {
     switch (m_gimbalMode) {
         case MANUAL_CONTROL:
@@ -169,11 +169,12 @@ void Gimbal::shootPlan()
         default:
             break;
     }
-}
+}*/
 
-/*void Gimbal::shootPlan()
+void Gimbal::shootPlan()
 {
-    if (m_gimbalMode != MANUAL_CONTROL) return;
+    if (m_gimbalMode != MANUAL_CONTROL) 
+    return;
 
     // 摩擦轮开关保持不变
     if (m_remoteControl.getLeftSwitchEvent() == Dr16RemoteControl::SwitchEvent3Pos::SWITCH_TOGGLE_MIDDLE_UP) {
@@ -181,33 +182,29 @@ void Gimbal::shootPlan()
     }
 
     // 允许拨弹条件
-    m_feederArmed = m_frictionState; //&& (m_leftShooterHeat < 350);
-    //if (!m_feederArmed) {
-        //m_contFireEnable  = false;
-        //m_downHoldMs      = 0;
-        //m_downLatched     = false;
-        //m_contFireTimerMs = 0;0
-        //return;
-    //}
+    m_feederArmed = m_frictionState ;//&& (m_leftShooterHeat < 350);
+    if (!m_feederArmed) {
+        m_contFireEnable  = false;
+        m_downHoldMs      = 0;
+        m_downLatched     = false;
+        m_contFireTimerMs = 0;
+        return;
+    }
 
-    // 默认清脉冲
     m_singleShotReq = false;
     
-    // 获取当前滚轮值 (-1.0 ~ 1.0)
     static float lastScrollWheel = 0.0f;
     float currentScrollWheel = m_remoteControl.getScrollWheel();
 
-    // 检测滚轮变化量，超过阈值判定为拨动
-    // 阈值设为0.15，避免静止时的信号抖动误触
+    // 检测滚轮变化量，超过阈值判定为拨动;阈值设为0.15，避免静止时的信号抖动误触
     if (fabsf(currentScrollWheel - lastScrollWheel) > 0.15f) {
         if (m_feederArmed) {
             m_singleShotReq = true;
         }
-        // 更新历史值为当前值，准备下一次检测
         lastScrollWheel = currentScrollWheel; 
     }
 
-        // 左拨杆打到下档 -> 开启连发
+    // 左拨杆打到下档 -> 开启连发
     if (m_remoteControl.getLeftSwitchStatus() == Dr16RemoteControl::SwitchStatus3Pos::SWITCH_DOWN) {
         if (m_feederArmed) {
             m_contFireEnable = true;
@@ -221,7 +218,7 @@ void Gimbal::shootPlan()
     // 清除旧逻辑相关的状态变量，防止干扰
     m_downHoldMs = 0;
     m_downLatched = false;
-}*/
+}
 
 void Gimbal::pitchControl()
 {
@@ -275,7 +272,7 @@ void Gimbal::yawControl()
     }
 }
 
-void Gimbal::shootControl()
+/*void Gimbal::shootControl()
 {
     if (m_gimbalMode == GIMBAL_NO_FORCE) {
         m_rammerState   = false;
@@ -334,9 +331,9 @@ void Gimbal::rammerStuckControl()
         default:
             break;
     }
-}
+}*/
 
-/*void Gimbal::shootControl()
+void Gimbal::shootControl()
 {
     if (m_gimbalMode == GIMBAL_NO_FORCE) {
         m_frictionState  = false;
@@ -347,6 +344,7 @@ void Gimbal::rammerStuckControl()
         m_shootState      = stateIdle;
         m_feederTargetRev = 0.0f;
         m_contFireTimerMs = 0;
+        m_contFirePending   = 0;
 
         m_jamCounter   = 0;
         m_unjamCounter = 0;
@@ -355,7 +353,8 @@ void Gimbal::rammerStuckControl()
         m_frictionLeftMotor->openloopControl(0.0f);
         m_rammerMotor->openloopControl(0.0f);
         return;
-    }else{
+    }
+    else{
         if (m_frictionState) {
             m_frictionLeftMotor->angularVelocityClosedloopControl(-FRICTION_TARGET_ANGULAR_VELOCITY);
             m_frictionRightMotor->angularVelocityClosedloopControl(FRICTION_TARGET_ANGULAR_VELOCITY);
@@ -366,21 +365,24 @@ void Gimbal::rammerStuckControl()
 
         bool singleShotTrigger = false;
 
-        // 短按单发：来自 shootPlan() 的脉冲
         if (m_singleShotReq) {
             singleShotTrigger = true;
             m_singleShotReq   = false;
         }
 
-        // 连发：按节拍周期触发“单发一次”
         if (m_contFireEnable && m_feederArmed) {
-            m_contFireTimerMs += 1; // 假设 controlLoop = 1ms
+            m_contFireTimerMs += 1; 
             if (m_contFireTimerMs >= CONT_FIRE_PERIOD_MS) {
                 m_contFireTimerMs = 0;
-                singleShotTrigger = true;
+                if (m_shootState == stateIdle) {
+                    singleShotTrigger = true;
+                } else {
+                    m_contFirePending = 1;
+                }
             }
         } else {
             m_contFireTimerMs = 0;
+            m_contFirePending   = 0;
         }
 
         switch (m_shootState) {
@@ -395,6 +397,12 @@ void Gimbal::rammerStuckControl()
                     break;
                 }
 
+                // 连发待发仅在空闲态消费，保证与单发脉冲解耦
+                if (!singleShotTrigger && m_contFirePending > 0) {
+                    singleShotTrigger = true;
+                    m_contFirePending--;
+                }
+
                 // 单发触发：目标圈数 + 1/8圈（方向反了就改成 -=）
                 if (singleShotTrigger) {
                     m_feederTargetRev += (+FEED_STEP_REV);
@@ -407,9 +415,9 @@ void Gimbal::rammerStuckControl()
             case stateFeeding: {
                 m_rammerMotor->revolutionsClosedloopControl(m_feederTargetRev);
 
-                const fp32 curRev   = m_rammerMotor->getCurrentRevolutions();
-                const fp32 curSpd   = m_rammerMotor->getCurrentAngularVelocity();
-                const fp32 revError = m_feederTargetRev - curRev;
+                const fp32 curRev   = m_rammerMotor->getCurrentRevolutions(); // 当前转数
+                const fp32 curSpd   = m_rammerMotor->getCurrentAngularVelocity(); // 当前速度
+                const fp32 revError = m_feederTargetRev - curRev; // 转数误差
                 // 到位判定
                 if (fabsf(revError) < FEED_REV_EPS && fabsf(curSpd) < FEED_SPEED_EPS) {
                     m_shootState = stateIdle;
@@ -418,17 +426,17 @@ void Gimbal::rammerStuckControl()
                 }
 
                 // 卡弹检测：独立 void 函数（内部可切换状态到 stateUnjamming）
-                rammerStuckControl();
+                //rammerStuckControl();
 
             } break;
 
             case stateUnjamming:
             default: {
-                // 解卡动作：建议用 openloop 给反向电流/电压（不走位置环）
-                m_rammerMotor->openloopControl(UNJAM_TORQUE);
+                //解卡动作：建议用 openloop 给反向电流/电压（不走位置环）
+                //m_rammerMotor->openloopControl(UNJAM_TORQUE);
 
-                // 解卡计时与状态切回：独立 void 函数
-                rammerStuckControl();
+               //解卡计时与状态切回：独立 void 函数
+               //rammerStuckControl();
             } break;
         }
     }
@@ -460,7 +468,7 @@ void Gimbal::rammerStuckControl()
             m_shootState   = stateFeeding; // 解卡完成，回去继续这发
         }
     }
-}*/
+}
 
 void Gimbal::ledControl()
 {
@@ -519,9 +527,10 @@ void Gimbal::ledControl()
 
 void Gimbal::transmitGimbalMotorData()
 {
-    HAL_CAN_AddTxMessage(&hcan1, m_yawMotor->getMotorControlHeader(), (*m_yawMotor + *m_rammerMotor).getMotorControlData(), NULL);
-    HAL_CAN_AddTxMessage(&hcan2, m_pitchMotor->getMotorControlHeader(), m_pitchMotor->getMotorControlData(), NULL);
-    HAL_CAN_AddTxMessage(&hcan2, m_frictionLeftMotor->getMotorControlHeader(), (*m_frictionLeftMotor + *m_frictionRightMotor).getMotorControlData(), NULL);
+    //HAL_CAN_AddTxMessage(&hcan1, m_yawMotor->getMotorControlHeader(), (*m_yawMotor + *m_rammerMotor).getMotorControlData(), NULL);
+    HAL_CAN_AddTxMessage(&hcan1, m_rammerMotor->getMotorControlHeader(), m_rammerMotor->getMotorControlData(), NULL);
+    //HAL_CAN_AddTxMessage(&hcan2, m_pitchMotor->getMotorControlHeader(), m_pitchMotor->getMotorControlData(), NULL);
+    HAL_CAN_AddTxMessage(&hcan1, m_frictionLeftMotor->getMotorControlHeader(), (*m_frictionLeftMotor + *m_frictionRightMotor).getMotorControlData(), NULL);
 }
 
 inline void Gimbal::setPitchAngle(const fp32 &targetAngle)

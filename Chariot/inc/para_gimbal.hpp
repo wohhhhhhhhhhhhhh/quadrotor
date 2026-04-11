@@ -25,19 +25,6 @@
 /******************************************************************************
  *                            PID参数
  ******************************************************************************/
-// 注意：以下vofa监听代码被移动到tsk_gimbal.cpp或相关初始化函数中，因为不能在头文件全局作用域执行代码
-// 另外，vofa类目前没有AddParameterListener成员函数，需要实现或确认接口
-/*
-vofa.AddParameterListener("rammer_p", [](fp32 *val) {
-    rammer_pid.kp = *val;
-});
-vofa.AddParameterListener("rammer_i", [](fp32 *val) {
-    rammer_pid.ki = *val;
-});
-vofa.AddParameterListener("rammer_d", [](fp32 *val) {
-    rammer_pid.kd = *val;
-});
-*/
 // 云台Yaw电机 (GM6020)
 #define YAW_OUTER_KP                  35.0f    // 40.0f
 #define YAW_OUTER_KI                  0.0f     // 0.0f
@@ -50,7 +37,7 @@ vofa.AddParameterListener("rammer_d", [](fp32 *val) {
 #define YAW_INNER_OUT_LIMIT           16384.0f // 25000.0f
 #define YAW_INNER_IOUT_LIMIT          0.0f     // 10000.0f
 #define YAW_INNER_LOWPASS_FILTER_PARA 1.0f     // 0.4f
-// 云台Pitch电机(有nuc版)
+// 云台Pitch电机(DM4310)
 #define PITCH_OUTER_KP                  15.0f // 外环
 #define PITCH_OUTER_KI                  0.0f
 #define PITCH_OUTER_KD                  0.0f
@@ -62,33 +49,26 @@ vofa.AddParameterListener("rammer_d", [](fp32 *val) {
 #define PITCH_INNER_OUT_LIMIT           5.0f
 #define PITCH_INNER_IOUT_LIMIT          0.0f
 #define PITCH_INNER_LOWPASS_FILTER_PARA 1.0f
-//无nuc版的pitch参数（需要调整）
-/*#define PITCH_OUTER_KP                  7.0f // 外环
-#define PITCH_OUTER_KI                  0.0f
-#define PITCH_OUTER_KD                  0.0f
-#define PITCH_OUTER_OUT_LIMIT           10.0f
-#define PITCH_OUTER_IOUT_LIMIT          0.0f
-#define PITCH_INNER_KP                  0.55f // 内环
-#define PITCH_INNER_KI                  0.0f
-#define PITCH_INNER_KD                  0.05f
-#define PITCH_INNER_OUT_LIMIT           10.0f
-#define PITCH_INNER_IOUT_LIMIT          0.0f
-#define PITCH_INNER_LOWPASS_FILTER_PARA 0.4f
-#define PITCH_ZERO_ANGLE                1.0f */
 // 重力补偿前馈（Nm）
 #define PITCH_GRAVITY_COMPENSATE 0.0f
-// 摩擦轮
+// 摩擦轮(M3508)
 #define FRICTION_KP         300.0f
 #define FRICTION_KI         10.0f
 #define FRICTION_KD         0.0f
 #define FRICTION_OUT_LIMIT  15000.0f
 #define FRICTION_IOUT_LIMIT 2000.0f
-// 拨弹轮 
-#define RAMMER_KP         2000.0f
-#define RAMMER_KI         8.0f
-#define RAMMER_KD         0.0f
-#define RAMMER_OUT_LIMIT  10000.0f
-#define RAMMER_IOUT_LIMIT 3000.0f
+// 拨弹轮(M2006)
+#define RAMMER_INNER_KP         500.0f   
+#define RAMMER_INNER_KI         0.5f     
+#define RAMMER_INNER_KD         0.0f
+#define RAMMER_INNER_OUT_LIMIT  10000.0f
+#define RAMMER_INNER_IOUT_LIMIT 3000.0f
+#define RAMMER_OUTER_KP         30.0f    
+#define RAMMER_OUTER_KI         0.0f
+#define RAMMER_OUTER_KD         1.0f     
+#define RAMMER_OUTER_OUT_LIMIT  60.0f    
+#define RAMMER_OUTER_IOUT_LIMIT 0.0f
+#define RAMMER_INNER_LOWPASS_FILTER_PARA 0.4f
 
 /******************************************************************************
  *                            IMU参数
@@ -124,37 +104,34 @@ vofa.AddParameterListener("rammer_d", [](fp32 *val) {
  ******************************************************************************/
 #define PITCH_UPPER_LIMIT 0.20f
 #define PITCH_LOWER_LIMIT -0.52f
-// #define PITCH_UPPER_LIMIT -3.0f
-// #define PITCH_LOWER_LIMIT 3.0f   
 #define YAW_UPPER_LIMIT   0.78f
 #define YAW_LOWER_LIMIT   -0.78f
 /******************************************************************************
  *                            发射机构参数
  ******************************************************************************/
 #define FRICTION_TARGET_ANGULAR_VELOCITY     760.0f
-#define RAMMER_TARGET_ANGULAR_VELOCITY       2.6f * MATH_PI//这个拨弹和摩擦速度貌似都有一点快了
-#define RAMMER_STUCK_TIMEOUT                 1.0f
-#define RAMMER_REVERT_TIME                   2.0f
-#define RAMMER_STUCK_REVERT_ANGULAR_VELOCITY 1.0f * MATH_PI
-// 左开关短按/长按阈值：短按=单发，长按=连发
-//#define FIRE_HOLD_MS 80
+// #define RAMMER_TARGET_ANGULAR_VELOCITY       2.6f * MATH_PI
+// #define RAMMER_STUCK_TIMEOUT                 1.0f
+// #define RAMMER_REVERT_TIME                   2.0f
+// #define RAMMER_STUCK_REVERT_ANGULAR_VELOCITY 1.0f * MATH_PI
+// 滚轮单发触发阈值
+#define FIRE_HOLD_MS 80
 
-// 拨弹电机减速比（M2006为36:1）
-//#define FEEDER_REDUCTION_RATIO 36.0f
+// 拨弹电机减速比
+#define FEEDER_REDUCTION_RATIO 36.0f
 
 // 单发步进（8弹位：1/8圈 * 减速比）
-// 原本是0.125f，现在为了让输出轴转1/8圈，电机轴需要转 0.125 * 36 = 4.5圈
-//#define FEED_STEP_REV  (0.125f * FEEDER_REDUCTION_RATIO)
+#define FEED_STEP_REV  (0.125f * FEEDER_REDUCTION_RATIO)
 // 到位误差允许值也要乘以减速比放大
-//#define FEED_REV_EPS   (0.010f * FEEDER_REDUCTION_RATIO)
-//#define FEED_SPEED_EPS 1.0f  // 速度阈值也适当放大，原0.6太小
+#define FEED_REV_EPS   (0.010f * FEEDER_REDUCTION_RATIO)
+#define FEED_SPEED_EPS 1.0f  
 
 // 连发节拍：连发模式下每隔多少ms触发一次“单发步进”
-//#define CONT_FIRE_PERIOD_MS 90
+#define CONT_FIRE_PERIOD_MS 90
 
 // 卡弹判定与解卡（tick计数版本，假设控制周期=1ms）
-//#define JAM_SPEED_TH   0.6f
-//#define JAM_HOLD_TICKS 120
+#define JAM_SPEED_TH   0.6f
+#define JAM_HOLD_TICKS 120
 
-//#define UNJAM_TORQUE   (-2000.0f)
-//#define UNJAM_TICKS    80
+#define UNJAM_TORQUE   (-2000.0f)
+#define UNJAM_TICKS    80
