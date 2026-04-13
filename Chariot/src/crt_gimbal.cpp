@@ -408,7 +408,8 @@ void Gimbal::shootControl()
                     m_feederTargetRev += (+FEED_STEP_REV);
                     m_shootState = stateFeeding;
                 } else {
-                    m_rammerMotor->openloopControl(0.0f);
+                    m_rammerMotor->revolutionsClosedloopControl(m_feederTargetRev);
+                    //m_rammerMotor->openloopControl(0.0f);
                 }
             } break;
 

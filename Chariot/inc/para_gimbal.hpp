@@ -58,14 +58,14 @@
 #define FRICTION_OUT_LIMIT  15000.0f
 #define FRICTION_IOUT_LIMIT 2000.0f
 // 拨弹轮(M2006)
-#define RAMMER_INNER_KP         500.0f   
+#define RAMMER_INNER_KP         5000.0f   
 #define RAMMER_INNER_KI         0.5f     
 #define RAMMER_INNER_KD         0.0f
 #define RAMMER_INNER_OUT_LIMIT  10000.0f
 #define RAMMER_INNER_IOUT_LIMIT 3000.0f
-#define RAMMER_OUTER_KP         30.0f    
+#define RAMMER_OUTER_KP         5.0f    
 #define RAMMER_OUTER_KI         0.0f
-#define RAMMER_OUTER_KD         1.0f     
+#define RAMMER_OUTER_KD         7.0f     
 #define RAMMER_OUTER_OUT_LIMIT  60.0f    
 #define RAMMER_OUTER_IOUT_LIMIT 0.0f
 #define RAMMER_INNER_LOWPASS_FILTER_PARA 0.4f
