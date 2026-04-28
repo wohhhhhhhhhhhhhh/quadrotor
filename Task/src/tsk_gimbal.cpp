@@ -14,6 +14,7 @@
 #include "crt_gimbal.hpp"
 #include "tsk_isr.hpp"
 #include "dvc_vofa.hpp"
+#include "usb_device.h"
 
 /* Define --------------------------------------------------------------------*/
 /******************************************************************************
@@ -87,7 +88,7 @@ CascadePID::PIDParam rammerInnerParam = {
     RAMMER_INNER_OUT_LIMIT,
     RAMMER_INNER_IOUT_LIMIT};
 LowPassFilter<fp32> rammerInnerLPF(RAMMER_INNER_LOWPASS_FILTER_PARA);
-CascadePID rammerPID(rammerOuterParam, rammerInnerParam, nullptr, &rammerInnerLPF );
+CascadePID rammerPID(rammerOuterParam, rammerInnerParam, nullptr, &rammerInnerLPF);
 
 /* Motor ---------------------------------------------*/
 
@@ -125,6 +126,7 @@ Gimbal gimbal(&yawMotor, &pitchMotor, &rammerMotor, &leftFrictionMotor, &rightFr
 
 extern "C" void gimbal_task(void *argument)
 {
+    MX_USB_DEVICE_Init();                   // 初始化USB设备
     CAN_Init(&hcan1, can1RxCallback);       // 初始化CAN1
     UART_Init(&huart3, dr16RxCallback, 36); // 初始化DR16串口
     vofa.Init();
