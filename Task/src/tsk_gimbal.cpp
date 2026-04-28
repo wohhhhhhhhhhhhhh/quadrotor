@@ -134,13 +134,15 @@ extern "C" void gimbal_task(void *argument)
     // pitchMotor.setControllerOutputPolarity(false);
     while (1) {
         gimbal.controlLoop();
-        vofa.writeData(rammerPID.getOuterLoop().pidGetData().setPoint);
-        vofa.writeData(rammerPID.getOuterLoop().pidGetData().feedBackData);
-        vofa.writeData(rammerPID.getOuterLoop().pidGetData().output);
-        vofa.writeData(rammerPID.getInnerLoop().pidGetData().output);
-        vofa.writeData((fp32)rammerMotor.getCurrentTorqueCurrent());
-        vofa.writeData(rammerMotor.getCurrentAngle());
-        vofa.sendFrame();
+        // vofa.writeData(rammerPID.getOuterLoop().pidGetData().setPoint);
+        // vofa.writeData(rammerPID.getOuterLoop().pidGetData().feedBackData);
+        // vofa.writeData(rammerPID.getOuterLoop().pidGetData().output);
+        // vofa.writeData(rammerPID.getInnerLoop().pidGetData().output);
+        // vofa.writeData((fp32)rammerMotor.getCurrentTorqueCurrent());
+        // vofa.writeData(rammerMotor.getCurrentAngle());
+        // vofa.writeData(leftFrictionMotor.getCurrentAngularVelocity());
+        // vofa.writeData(rightFrictionMotor.getCurrentAngularVelocity());
+        // vofa.sendFrame();
         vTaskDelayUntil(&taskLastWakeTime, 1); // 确保任务以定周期1ms运行
     }
 }
