@@ -123,7 +123,7 @@
 #define FEED_SPEED_EPS 1.0f  
 
 // 连发节拍：连发模式下每隔多少ms触发一次“单发步进”
-#define CONT_FIRE_PERIOD_MS 80//90
+#define CONT_FIRE_PERIOD_MS 100.0f//90
 
 // 卡弹判定与解卡（tick计数版本，假设控制周期=1ms）
 #define JAM_SPEED_TH   0.6f
