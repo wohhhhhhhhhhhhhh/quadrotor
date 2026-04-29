@@ -18,6 +18,7 @@
 #include "GSRL.hpp"
 #include "para_gimbal.hpp"
 #include "drv_ws2812.hpp"
+#include "usbd_cdc_if.h"
 #include "dvc_vofa.hpp"
 
 /* Exported types ------------------------------------------------------------*/
@@ -64,10 +65,10 @@ private:
     Vector3f m_gimbalTargetSpeed;  // 云台坐标系下的目标速度
     Vector3f m_chassisTargetSpeed; // 底盘坐标系下的目标速度
 
-   // 发射机构相关量
-    bool m_rammerState;   // false: 停止 true: 发射
-    bool m_frictionState; // false: 停止 true: 启动
-    bool m_singleShotState; // 单发状态
+    // 发射机构相关量
+    bool m_rammerState;                 // false: 停止 true: 发射
+    bool m_frictionState;               // false: 停止 true: 启动
+    bool m_singleShotState;             // 单发状态
     fp32 m_singleShotTargetRevolutions; // 单发目标转数
 
     bool m_singleShotReq  = false; // 本周期产生一次单发请求（脉冲）
@@ -75,10 +76,10 @@ private:
     bool m_feederArmed    = false; // 允许拨弹（摩擦轮开且热量允许等）
 
     // 单发/连发判定计时
-    uint32_t m_downHoldMs      = 0; // 左三档保持DOWN计时（ms）
+    uint32_t m_downHoldMs      = 0;     // 左三档保持DOWN计时（ms）
     bool m_downLatched         = false; // 左三档保持DOWN锁存，防止计时被中断
-    uint32_t m_contFireTimerMs = 0; // 连发节拍计时（ms）
-    
+    uint32_t m_contFireTimerMs = 0;     // 连发节拍计时（ms）
+
     uint8_t m_contFirePending = 0;
 
     // 拨弹目标多圈（用于 revolutionsClosedloopControl）
@@ -86,8 +87,8 @@ private:
 
     // Shoot 状态机
     enum ShootState : uint8_t {
-        stateIdle = 0, 
-        stateFeeding, 
+        stateIdle = 0,
+        stateFeeding,
         stateUnjamming
     };
     ShootState m_shootState = stateIdle;
@@ -104,11 +105,17 @@ private:
 
     // 标志位
     bool m_isInitComplete;
+    uint8_t m_lastShootCmd; // 上一次 shoot_or_not 值，用于边沿检测
 
     // 下C板上发裁判系统数据
     uint8_t m_gameProgress;
     uint16_t m_leftShooterHeat;
     // uint16_t m_rightShooterHeat;
+
+    // usb发送数据相关
+    txMsgViaUsb_t m_txMsgViaUsb;
+    uint8_t m_usbTxBuffer[sizeof(txMsgViaUsb_t)]{};
+    constexpr static uint8_t USB_TX_SOF = 0x3A;
 
 public:
     Gimbal(MotorGM6020 *yawMotor, MotorDM4310 *pitchMotor, MotorM2006 *rammerMotor, MotorM3508 *frictionLeftMotor, MotorM3508 *frictionRightMotor, IMU *imu);
@@ -129,6 +136,7 @@ private:
     void ledControl();
     void rammerStuckControl();
     void transmitGimbalMotorData();
+    void transmitGimbalDataViaUsb();
 
     inline void setPitchAngle(const fp32 &targetAngle);
     inline void setYawAngle(const fp32 &targetAngle);
