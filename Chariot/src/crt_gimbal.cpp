@@ -49,10 +49,10 @@ Gimbal::Gimbal(MotorGM6020 *yawMotor, MotorDM4310 *pitchMotor, MotorM2006 *ramme
       m_yawTargetAngle(0.0f), m_pitchTargetAngle(0.0f),
       m_rammerState(false),
       m_frictionState(false),
-      m_lastShootCmd(0),
       m_remoteControl(),
       m_ws2812(&htim1, TIM_CHANNEL_1),
-      m_isInitComplete(false) {}
+      m_isInitComplete(false),
+      m_lastShootCmd(0) {}
 
 void Gimbal::init()
 {
@@ -138,13 +138,8 @@ void Gimbal::targetOrientationPlan()
 {
     switch (m_gimbalMode) {
         case MANUAL_CONTROL:
-<<<<<<< HEAD
             setYawAngle(m_yawTargetAngle - rcStickDeadZoneFilter(m_remoteControl.getRightStickX()) * DT7_STICK_YAW_SENSITIVITY*0.6);
             setPitchAngle(m_pitchTargetAngle - rcStickDeadZoneFilter(-m_remoteControl.getRightStickY()) * DT7_STICK_PITCH_SENSITIVITY*0.6);
-=======
-            setYawAngle(m_yawTargetAngle - rcStickDeadZoneFilter(m_remoteControl.getRightStickX()) * DT7_STICK_YAW_SENSITIVITY * 0.6);
-            setPitchAngle(m_pitchTargetAngle - rcStickDeadZoneFilter(-m_remoteControl.getRightStickY()) * DT7_STICK_PITCH_SENSITIVITY * 0.2);
->>>>>>> 19d851814003dd3c5cf732312581ab3d91ec2ad1
             break;
 
         case AUTO_CONTROL:
@@ -164,8 +159,6 @@ void Gimbal::shootPlan()
     switch (m_gimbalMode) {
         case AUTO_CONTROL: {
             if (rxMsgViaUsb.shoot_or_not && !m_lastShootCmd) {
-
-<<<<<<< HEAD
     // 摩擦轮开关保持不变
     if (m_remoteControl.getLeftSwitchEvent() == Dr16RemoteControl::SwitchEvent3Pos::SWITCH_TOGGLE_MIDDLE_UP) {
         m_frictionState = !m_frictionState;
@@ -199,7 +192,6 @@ void Gimbal::shootPlan()
         scrollWheelLatched = false;
     }
     lastScrollWheel = currentScrollWheel;
-=======
                 m_singleShotReq = true;
             }
             m_lastShootCmd = rxMsgViaUsb.shoot_or_not;
@@ -210,7 +202,6 @@ void Gimbal::shootPlan()
             if (m_remoteControl.getLeftSwitchEvent() == Dr16RemoteControl::SwitchEvent3Pos::SWITCH_TOGGLE_MIDDLE_UP) {
                 m_frictionState = !m_frictionState;
             }
->>>>>>> 19d851814003dd3c5cf732312581ab3d91ec2ad1
 
             // 允许拨弹条件
             m_feederArmed = m_frictionState; //&& (m_leftShooterHeat < 350);
@@ -225,15 +216,21 @@ void Gimbal::shootPlan()
             m_singleShotReq = false;
 
             static float lastScrollWheel = 0.0f;
-            float currentScrollWheel     = m_remoteControl.getScrollWheel();
+            static bool scrollWheelLatched = false;
+            float currentScrollWheel       = m_remoteControl.getScrollWheel();
 
-            // 检测滚轮变化量，超过阈值判定为拨动;阈值设为0.15，避免静止时的信号抖动误触
-            if (fabsf(currentScrollWheel - lastScrollWheel) > 0.15f) {
-                if (m_feederArmed) {
-                    m_singleShotReq = true;
+            // 先检测“离开中位”的一次变化，触发后锁定；只有回中后才允许下一次触发
+            if (!scrollWheelLatched) {
+                if (fabsf(currentScrollWheel - lastScrollWheel) > 0.15f) {
+                    if (m_feederArmed) {
+                        m_singleShotReq = true;
+                    }
+                    scrollWheelLatched = true;
                 }
-                lastScrollWheel = currentScrollWheel;
+            } else if (fabsf(currentScrollWheel) < 0.05f) {
+                scrollWheelLatched = false;
             }
+            lastScrollWheel = currentScrollWheel;
 
             // 左拨杆打到下档 -> 开启连发
             if (m_remoteControl.getLeftSwitchStatus() == Dr16RemoteControl::SwitchStatus3Pos::SWITCH_DOWN) {
@@ -411,13 +408,8 @@ void Gimbal::shootControl()
                 // 解卡动作：建议用 openloop 给反向电流/电压（不走位置环）
                 // m_rammerMotor->openloopControl(UNJAM_TORQUE);
 
-<<<<<<< HEAD
-                //解卡计时与状态切回：独立 void 函数
-                //rammerStuckControl();
-=======
                 // 解卡计时与状态切回：独立 void 函数
                 // rammerStuckControl();
->>>>>>> 19d851814003dd3c5cf732312581ab3d91ec2ad1
             } break;
         }
     }
@@ -469,7 +461,7 @@ void Gimbal::ledControl()
                 isLedChanged    = true;
                 isStickReturned = false;
             }
-        } else if (abs(leftStickX) < 0.1f) {
+        } else if (fabsf(leftStickX) < 0.1f) {
             isStickReturned = true;
         }
     else {
@@ -478,17 +470,6 @@ void Gimbal::ledControl()
 
     static bool isLedOff = false;
 
-<<<<<<< HEAD
-    // if (m_gimbalMode == GIMBAL_NO_FORCE) {
-    //     if (!isLedOff) {
-    //         for(int i=0; i<WS2812_LED_NUM; i++) {
-    //             m_ws2812.SetColor(i, 0, 0, 0);
-    //         }
-    //         m_ws2812.Update();
-    //         isLedOff = true;
-    //     }
-    // } else {
-=======
     if (m_gimbalMode == GIMBAL_NO_FORCE) {
         if (!isLedOff) {
             for (int i = 0; i < WS2812_LED_NUM; i++) {
@@ -498,7 +479,6 @@ void Gimbal::ledControl()
             isLedOff = true;
         }
     } else {
->>>>>>> 19d851814003dd3c5cf732312581ab3d91ec2ad1
         if (isLedOff || isLedChanged) {
             uint8_t r = 0, g = 0, b = 0;
             switch (currentLedColor) {
@@ -525,7 +505,7 @@ void Gimbal::ledControl()
             isLedOff     = false;
         }
     }
-//}
+}
 
 void Gimbal::transmitGimbalMotorData()
 {

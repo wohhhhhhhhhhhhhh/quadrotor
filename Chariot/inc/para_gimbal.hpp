@@ -58,12 +58,12 @@
 #define FRICTION_OUT_LIMIT  15000.0f
 #define FRICTION_IOUT_LIMIT 2000.0f
 // 拨弹轮(M2006)
-#define RAMMER_INNER_KP         5000.0f   
-#define RAMMER_INNER_KI         0.5f     
+#define RAMMER_INNER_KP         5000.0f//5000   
+#define RAMMER_INNER_KI         0.0f//0.5     
 #define RAMMER_INNER_KD         0.0f
 #define RAMMER_INNER_OUT_LIMIT  10000.0f
 #define RAMMER_INNER_IOUT_LIMIT 3000.0f
-#define RAMMER_OUTER_KP         5.0f    
+#define RAMMER_OUTER_KP         7.0f //5.0   
 #define RAMMER_OUTER_KI         0.0f
 #define RAMMER_OUTER_KD         7.0f     
 #define RAMMER_OUTER_OUT_LIMIT  60.0f    
@@ -123,7 +123,7 @@
 #define FEED_SPEED_EPS 1.0f  
 
 // 连发节拍：连发模式下每隔多少ms触发一次“单发步进”
-#define CONT_FIRE_PERIOD_MS 100.0f//90
+#define CONT_FIRE_PERIOD_MS 200.0f//90
 
 // 卡弹判定与解卡（tick计数版本，假设控制周期=1ms）
 #define JAM_SPEED_TH   0.6f
