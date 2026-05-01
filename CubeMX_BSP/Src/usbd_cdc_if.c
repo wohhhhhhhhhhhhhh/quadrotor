@@ -23,11 +23,10 @@
 
 /* USER CODE BEGIN INCLUDE */
 rxMsgViaUsb_t rxMsgViaUsb = {
-    .header       = 0xA3,
-    .found        = 0,
-    .shoot_or_not = 0,
-    .is_updated   = 0,
-    .checksum     = 0,
+    .header     = 0xA3,
+    .found      = 0,
+    .shootOrNot = 0,
+    .checksum   = 0,
 };
 
 /* USER CODE END INCLUDE */

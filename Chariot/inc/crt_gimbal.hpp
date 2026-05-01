@@ -116,6 +116,8 @@ private:
     txMsgViaUsb_t m_txMsgViaUsb;
     uint8_t m_usbTxBuffer[sizeof(txMsgViaUsb_t)]{};
     constexpr static uint8_t USB_TX_SOF = 0x3A;
+    constexpr static uint8_t USB_TX_EOF = 0xAA;
+    size_t m_usbSendErrCnt              = 0; // the counter for error in sending usb msg for debug usage;
 
 public:
     Gimbal(MotorGM6020 *yawMotor, MotorDM4310 *pitchMotor, MotorM2006 *rammerMotor, MotorM3508 *frictionLeftMotor, MotorM3508 *frictionRightMotor, IMU *imu);
