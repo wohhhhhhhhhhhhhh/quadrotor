@@ -53,38 +53,27 @@ extern "C" {
 #define APP_TX_DATA_SIZE 2048
 /* USER CODE BEGIN EXPORTED_DEFINES */
 
-// TODO:
 typedef struct {
-    uint8_t header; // 0xA3 for InfantryDL
-    // 1
-    float pitch;
-    float yaw;
-    // 9
-    uint8_t found;
-    // 10
-    uint8_t shoot_or_not;
-    // 11
-    uint8_t is_updated;
-    // 12
-    uint8_t checksum;
-    // 13
+    uint8_t header;                      // (0)   // 0xA3 for drone
+    float pitch;                         // (1-4)
+    float yaw;                           // (5-8)
+    uint8_t found;                       // (9)
+    uint8_t shootOrNot;                  // (10)
+    uint8_t singleShootModeFlag;         // (11)
+    uint8_t checksum;                    // (12)
 } __attribute__((packed)) rxMsgViaUsb_t; // the type of data received from the upper machine. including the pitch and yaw angle (if vision system's data is available), whether the target is found, whether to shoot or not, whether the data is updated and checksum (for data integrity check)from
 
 extern rxMsgViaUsb_t rxMsgViaUsb;
 
 typedef struct {
-    uint8_t header; // 0x3A
-    // 1
-    float roll;
-    float pitch;
-    float yaw;
-    // 13
-    float q[4];
-    // 29
-    float bullet_spped;
-    // 33
-    uint8_t EOF_; // 0xAA for InfantryDL // EOF_ not EOF (variable name)
-    // 34
+    uint8_t header;                      // (0)     // 0x3A
+    float roll;                          // (1-4)
+    float pitch;                         // (5-8)
+    float yaw;                           // (9-12)
+    float q[4];                          // (13-28)
+    float bulletSpeed;                   // (29-32)
+    uint8_t toogleTargetKeyPressed;      // (33)
+    uint8_t EOF_;                        // (34)    // 0xAA for drone // EOF_ not EOF (variable name)
 } __attribute__((packed)) txMsgViaUsb_t; // teh data to be sent to the upper machine. including the euler angle, quaternion and bullet speed (if referee system's data is available)
 
 /* USER CODE END EXPORTED_DEFINES */

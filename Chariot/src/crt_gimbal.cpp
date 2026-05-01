@@ -12,6 +12,7 @@
  */
 /* Includes ------------------------------------------------------------------*/
 #include "crt_gimbal.hpp"
+#include "dvc_remotecontrol.hpp"
 #include "para_gimbal.hpp"
 #include "tsk_isr.hpp"
 #include "drv_misc.h"
@@ -49,10 +50,10 @@ Gimbal::Gimbal(MotorGM6020 *yawMotor, MotorDM4310 *pitchMotor, MotorM2006 *ramme
       m_yawTargetAngle(0.0f), m_pitchTargetAngle(0.0f),
       m_rammerState(false),
       m_frictionState(false),
-      m_lastShootCmd(0),
       m_remoteControl(),
       m_ws2812(&htim1, TIM_CHANNEL_1),
-      m_isInitComplete(false) {}
+      m_isInitComplete(false),
+      m_lastShootCmd(0) {}
 
 void Gimbal::init()
 {
@@ -158,11 +159,33 @@ void Gimbal::shootPlan()
 {
     switch (m_gimbalMode) {
         case AUTO_CONTROL: {
-            if (rxMsgViaUsb.shoot_or_not && !m_lastShootCmd) {
-
-                m_singleShotReq = true;
+            if (m_remoteControl.getLeftSwitchEvent() == Dr16RemoteControl::SwitchEvent3Pos::SWITCH_TOGGLE_MIDDLE_UP) {
+                m_frictionState = !m_frictionState;
             }
-            m_lastShootCmd = rxMsgViaUsb.shoot_or_not;
+
+            m_feederArmed = m_frictionState; //&& (m_leftShooterHeat < 350);
+            if (!m_feederArmed) {
+                m_singleShotReq   = false;
+                m_contFireEnable  = false;
+                m_downHoldMs      = 0;
+                m_downLatched     = false;
+                m_contFireTimerMs = 0;
+                m_lastShootCmd    = rxMsgViaUsb.shootOrNot;
+                return;
+            }
+
+            m_singleShotReq = false;
+
+            if (rxMsgViaUsb.singleShootModeFlag) {
+                m_contFireEnable = false;
+                if (rxMsgViaUsb.shootOrNot && !m_lastShootCmd) {
+                    m_singleShotReq = true;
+                }
+            } else {
+                m_contFireEnable = (rxMsgViaUsb.shootOrNot != 0);
+            }
+
+            m_lastShootCmd = rxMsgViaUsb.shootOrNot;
             return;
         }
         case MANUAL_CONTROL: {
@@ -478,17 +501,22 @@ void Gimbal::transmitGimbalMotorData()
 
 void Gimbal::transmitGimbalDataViaUsb()
 {
-    m_txMsgViaUsb.header = USB_TX_SOF;
-    m_txMsgViaUsb.roll   = m_eulerAngle.x;
-    m_txMsgViaUsb.pitch  = m_eulerAngle.y;
-    m_txMsgViaUsb.yaw    = m_eulerAngle.z;
-    m_txMsgViaUsb.q[0]   = m_imu->getQuaternion()[0]; // w
-    m_txMsgViaUsb.q[1]   = m_imu->getQuaternion()[1]; // x
-    m_txMsgViaUsb.q[2]   = m_imu->getQuaternion()[2]; // y
-    m_txMsgViaUsb.q[3]   = m_imu->getQuaternion()[3]; // z
-    // m_txMsgViaUsb.bullet_spped = ? // require referee system's data
+    m_txMsgViaUsb.header                 = USB_TX_SOF;
+    m_txMsgViaUsb.roll                   = m_eulerAngle.x;
+    m_txMsgViaUsb.pitch                  = m_eulerAngle.y;
+    m_txMsgViaUsb.yaw                    = m_eulerAngle.z;
+    m_txMsgViaUsb.q[0]                   = m_imu->getQuaternion()[0]; // w
+    m_txMsgViaUsb.q[1]                   = m_imu->getQuaternion()[1]; // x
+    m_txMsgViaUsb.q[2]                   = m_imu->getQuaternion()[2]; // y
+    m_txMsgViaUsb.q[3]                   = m_imu->getQuaternion()[3]; // z
+    m_txMsgViaUsb.toogleTargetKeyPressed = (uint8_t)(m_remoteControl.getKeyboardKeyStatus(Dr16RemoteControl::KeyboardKeyIndex::KEY_B) == RemoteControl::KeyStatus::KEY_PRESS);
+    m_txMsgViaUsb.EOF_                   = USB_TX_EOF;
+    m_txMsgViaUsb.bulletSpeed            = 0.f; // TODO: require referee system's data
     memcpy(m_usbTxBuffer, &m_txMsgViaUsb, sizeof(txMsgViaUsb_t));
-    CDC_Transmit_FS(m_usbTxBuffer, sizeof(txMsgViaUsb_t));
+
+    if (CDC_Transmit_FS(m_usbTxBuffer, sizeof(txMsgViaUsb_t)) != USBD_OK) {
+        m_usbSendErrCnt++;
+    }
 }
 
 inline void Gimbal::setPitchAngle(const fp32 &targetAngle)
