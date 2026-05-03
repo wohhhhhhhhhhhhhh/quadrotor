@@ -159,7 +159,6 @@ void Gimbal::shootPlan()
 {
     switch (m_gimbalMode) {
         case AUTO_CONTROL: {
-            if (rxMsgViaUsb.shoot_or_not && !m_lastShootCmd) {
     // 摩擦轮开关保持不变
     if (m_remoteControl.getLeftSwitchEvent() == Dr16RemoteControl::SwitchEvent3Pos::SWITCH_TOGGLE_MIDDLE_UP) {
         m_frictionState = !m_frictionState;
@@ -193,10 +192,6 @@ void Gimbal::shootPlan()
         scrollWheelLatched = false;
     }
     lastScrollWheel = currentScrollWheel;
-                m_singleShotReq = true;
-            }
-
-            m_lastShootCmd = rxMsgViaUsb.shootOrNot;
             return;
         }
         case MANUAL_CONTROL: {
@@ -538,12 +533,25 @@ void Gimbal::transmitGimbalDataViaUsb()
 
 inline void Gimbal::setPitchAngle(const fp32 &targetAngle)
 {
-    if (targetAngle > PITCH_UPPER_LIMIT)
-        m_pitchTargetAngle = PITCH_UPPER_LIMIT;
-    else if (targetAngle < PITCH_LOWER_LIMIT)
-        m_pitchTargetAngle = PITCH_LOWER_LIMIT;
-    else
-        m_pitchTargetAngle = targetAngle;
+    fp32 constrainedAngle = targetAngle;
+    
+    // 第一层：目标角度软限位（指令级限制）
+    if (constrainedAngle > PITCH_UPPER_LIMIT)
+        constrainedAngle = PITCH_UPPER_LIMIT;
+    else if (constrainedAngle < PITCH_LOWER_LIMIT)
+        constrainedAngle = PITCH_LOWER_LIMIT;
+    
+    // 第二层：根据编码器位置的硬限位（电机保护）
+    fp32 currentEncoderAngle = m_pitchMotor->getCurrentAngle();
+    
+    // 如果当前已接近硬限位，防止继续往该方向转
+    if (currentEncoderAngle >= PITCH_ENCODER_UPPER_LIMIT && constrainedAngle > currentEncoderAngle) {
+        constrainedAngle = currentEncoderAngle;
+    } else if (currentEncoderAngle <= PITCH_ENCODER_LOWER_LIMIT && constrainedAngle < currentEncoderAngle) {
+        constrainedAngle = currentEncoderAngle;
+    }
+    
+    m_pitchTargetAngle = constrainedAngle;
 }
 
 inline void Gimbal::setYawAngle(const fp32 &targetAngle)
