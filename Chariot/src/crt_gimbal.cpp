@@ -601,7 +601,7 @@ void Gimbal::yawControl()
 
         case MANUAL_CONTROL:
         case AUTO_CONTROL: { // 手动控制和自动控制都使用同样的闭环控制
-            fp32 fdbData[2] = {m_yawTargetAngle - m_eulerAngle.z, m_imu->getGyro().z};
+            fp32 fdbData[2] = {GSRLMath::normalizeDeltaAngle(m_yawTargetAngle - m_eulerAngle.z), m_imu->getGyro().z};
             m_yawMotor->externalClosedloopControl(0.0f, fdbData, 2);
             break;
         }
@@ -853,13 +853,15 @@ inline void Gimbal::setPitchAngle(const fp32 &targetAngle)
         constrainedAngle = PITCH_LOWER_LIMIT;
     
     // 第二层：根据编码器位置的硬限位（电机保护）
-    fp32 currentEncoderAngle = m_pitchMotor->getCurrentAngle();
+    const fp32 currentPitchMotorAngle =
+        GSRLMath::normalizeDeltaAngle(m_pitchMotor->getCurrentAngle());
+    const fp32 pitchError = constrainedAngle - m_eulerAngle.y;
     
     // 如果当前已接近硬限位，防止继续往该方向转
-    if (currentEncoderAngle >= PITCH_ENCODER_UPPER_LIMIT && constrainedAngle > currentEncoderAngle) {
-        constrainedAngle = currentEncoderAngle;
-    } else if (currentEncoderAngle <= PITCH_ENCODER_LOWER_LIMIT && constrainedAngle < currentEncoderAngle) {
-        constrainedAngle = currentEncoderAngle;
+    if (currentPitchMotorAngle >= PITCH_MOTOR_ENCODER_UPPER_LIMIT_RAD && pitchError > 0.0f) {
+        constrainedAngle = m_eulerAngle.y;
+    } else if (currentPitchMotorAngle <= PITCH_MOTOR_ENCODER_LOWER_LIMIT_RAD && pitchError < 0.0f) {
+        constrainedAngle = m_eulerAngle.y;
     }
     
     m_pitchTargetAngle = constrainedAngle;
@@ -867,12 +869,18 @@ inline void Gimbal::setPitchAngle(const fp32 &targetAngle)
 
 inline void Gimbal::setYawAngle(const fp32 &targetAngle)
 {
-    if (targetAngle > YAW_UPPER_LIMIT)
-        m_yawTargetAngle = YAW_UPPER_LIMIT;
-    else if (targetAngle < YAW_LOWER_LIMIT)
-        m_yawTargetAngle = YAW_LOWER_LIMIT;
-    else
-        m_yawTargetAngle = targetAngle;
+    fp32 constrainedAngle = targetAngle;
+    const fp32 currentYawMotorAngle =
+        GSRLMath::normalizeDeltaAngle(m_yawMotor->getCurrentAngle());
+    const fp32 yawError = GSRLMath::normalizeDeltaAngle(constrainedAngle - m_eulerAngle.z);
+
+    if (currentYawMotorAngle >= YAW_MOTOR_ENCODER_UPPER_LIMIT_RAD && yawError > 0.0f) {
+        constrainedAngle = m_eulerAngle.z;
+    } else if (currentYawMotorAngle <= YAW_MOTOR_ENCODER_LOWER_LIMIT_RAD && yawError < 0.0f) {
+        constrainedAngle = m_eulerAngle.z;
+    }
+
+    m_yawTargetAngle = constrainedAngle;
 }
 
 inline fp32 Gimbal::rcStickDeadZoneFilter(const fp32 &rcStickValue)

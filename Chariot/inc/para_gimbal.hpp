@@ -109,12 +109,16 @@
 // 目标角度限制（软限位 - 用于指令限制）
 #define PITCH_UPPER_LIMIT 0.16f
 #define PITCH_LOWER_LIMIT -0.58f
-#define YAW_UPPER_LIMIT   0.78f
-#define YAW_LOWER_LIMIT   -0.78f
 
-// 编码器硬限位（物理限制 + 安全余量0.02rad）- 用于电机保护
-#define PITCH_ENCODER_UPPER_LIMIT (PITCH_UPPER_LIMIT + 0.02f)
-#define PITCH_ENCODER_LOWER_LIMIT (PITCH_LOWER_LIMIT - 0.02f)
+// Pitch motor encoder hard limits. Unit: rad, signed motor angle [-PI, PI).
+// These limits are independent from the IMU pitch target soft limits above.
+#define PITCH_MOTOR_ENCODER_UPPER_LIMIT_RAD 0.18f
+#define PITCH_MOTOR_ENCODER_LOWER_LIMIT_RAD -0.60f
+
+// Yaw motor encoder hard limits. Unit: rad, signed motor angle [-PI, PI).
+// Do not limit yaw by fixed IMU yaw because the quadrotor body yaw can move.
+#define YAW_MOTOR_ENCODER_UPPER_LIMIT_RAD 0.78f
+#define YAW_MOTOR_ENCODER_LOWER_LIMIT_RAD -0.78f
 /******************************************************************************
  *                            发射机构参数
  ******************************************************************************/
