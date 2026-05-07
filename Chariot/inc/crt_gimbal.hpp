@@ -19,7 +19,7 @@
 #include "para_gimbal.hpp"
 #include "drv_ws2812.hpp"
 #include "usbd_cdc_if.h"
-#include "dvc_vofa.hpp"
+//#include "dvc_vofa.hpp"
 
 /* Exported types ------------------------------------------------------------*/
 
@@ -54,6 +54,12 @@ private:
     // IMU
     IMU *m_imu;
     Vector3f m_eulerAngle;
+
+    // USB tx buffer
+    static constexpr uint32_t m_usbTxBufSize = 64;
+    uint8_t m_usbTxBuf[m_usbTxBufSize]       = {};
+    uint8_t m_usbTxSOF                       = 0x3A;
+    uint8_t m_usbTxEOF                       = 0xAA;
 
     // 云台控制相关量
     GimbalMode m_gimbalMode;
@@ -98,7 +104,8 @@ private:
     uint32_t m_unjamCounter = 0;
 
     // 遥控器
-    Dr16RemoteControl m_remoteControl;
+    DR16RemoteControl m_remoteControl;
+    VT13RemoteControl m_vt13RemoteControl;
 
     // LED Strip
     WS2812 m_ws2812;
@@ -126,7 +133,9 @@ public:
     void imuLoop();
     void receiveGimbalMotorDataFromISR(const can_rx_message_t *rxMessage);
     void receiveRemoteControlDataFromISR(const uint8_t *rxData);
-
+    void receiveVt13RemoteControlDataFromISR(const uint8_t *rxData);
+    uint8_t sendUsbData();
+    
 private:
     void modeSelect();
     void targetOrientationPlan();

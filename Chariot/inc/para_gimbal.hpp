@@ -58,14 +58,14 @@
 #define FRICTION_OUT_LIMIT  15000.0f
 #define FRICTION_IOUT_LIMIT 2000.0f
 // 拨弹轮(M2006)
-#define RAMMER_INNER_KP         5000.0f//5000   
-#define RAMMER_INNER_KI         0.0f//0.5     
+#define RAMMER_INNER_KP         6500.0f//6000   /5000
+#define RAMMER_INNER_KI         0.5f//0.5     
 #define RAMMER_INNER_KD         0.0f
 #define RAMMER_INNER_OUT_LIMIT  10000.0f
 #define RAMMER_INNER_IOUT_LIMIT 3000.0f
-#define RAMMER_OUTER_KP         7.0f //5.0   
+#define RAMMER_OUTER_KP         11.0f //7.0   /9.0
 #define RAMMER_OUTER_KI         0.0f
-#define RAMMER_OUTER_KD         7.0f     
+#define RAMMER_OUTER_KD         10.0f     
 #define RAMMER_OUTER_OUT_LIMIT  60.0f    
 #define RAMMER_OUTER_IOUT_LIMIT 0.0f
 #define RAMMER_INNER_LOWPASS_FILTER_PARA 0.4f
@@ -98,6 +98,10 @@
 #define DT7_STICK_DEAD_ZONE         0.05f
 #define DT7_STICK_PITCH_SENSITIVITY 0.01f
 #define DT7_STICK_YAW_SENSITIVITY   0.01f
+#define DT7_NORMALIZED_INPUT_LIMIT  1.0f
+#define DT7_KEYBOARD_MOVE_SCALE     1.0f
+#define DT7_MOUSE_YAW_STICK_GAIN    40.0f
+#define DT7_MOUSE_PITCH_STICK_GAIN  30.0f
 
 /******************************************************************************
  *                            云台角度限制
@@ -124,11 +128,11 @@
 // 单发步进（8弹位：1/8圈 * 减速比）
 #define FEED_STEP_REV  (0.125f * FEEDER_REDUCTION_RATIO)
 // 到位误差允许值也要乘以减速比放大
-#define FEED_REV_EPS   (0.010f * FEEDER_REDUCTION_RATIO)
+#define FEED_REV_EPS   (0.020f * FEEDER_REDUCTION_RATIO)//0.01
 #define FEED_SPEED_EPS 1.0f  
 
 // 连发节拍：连发模式下每隔多少ms触发一次“单发步进”
-#define CONT_FIRE_PERIOD_MS 200.0f//90
+#define CONT_FIRE_PERIOD_MS 20.0f//90
 
 // 卡弹判定与解卡（tick计数版本，假设控制周期=1ms）
 #define JAM_SPEED_TH   0.6f

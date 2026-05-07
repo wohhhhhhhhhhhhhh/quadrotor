@@ -53,6 +53,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Task/src/tsk_gimbal.cpp
     Task/src/tsk_imu.cpp
     Task/src/tsk_isr.cpp
+    $<TARGET_OBJECTS:gsrl>
 )
 
 # Add include paths

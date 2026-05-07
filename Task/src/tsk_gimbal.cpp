@@ -13,7 +13,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "crt_gimbal.hpp"
 #include "tsk_isr.hpp"
-#include "dvc_vofa.hpp"
+//#include "dvc_vofa.hpp"
 #include "usb_device.h"
 
 /* Define --------------------------------------------------------------------*/
@@ -98,7 +98,7 @@ MotorM2006 rammerMotor(6, &rammerPID, 0, 36);
 MotorM3508 leftFrictionMotor(4, &leftFrictionPID);
 MotorM3508 rightFrictionMotor(1, &rightFrictionPID);
 
-Vofa<12> vofa;
+//Vofa<12> vofa;
 
 /******************************************************************************
  *                            IMU相关
@@ -129,7 +129,7 @@ extern "C" void gimbal_task(void *argument)
     MX_USB_DEVICE_Init();                   // 初始化USB设备
     CAN_Init(&hcan1, can1RxCallback);       // 初始化CAN1
     UART_Init(&huart3, dr16RxCallback, 36); // 初始化DR16串口
-    vofa.Init();
+    //vofa.Init();
     TickType_t taskLastWakeTime = xTaskGetTickCount(); // 获取任务开始时间
     gimbal.init();
     // pitchPID.setInnerLoopOutputPolarity(false);

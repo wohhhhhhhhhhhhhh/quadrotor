@@ -51,6 +51,7 @@ Gimbal::Gimbal(MotorGM6020 *yawMotor, MotorDM4310 *pitchMotor, MotorM2006 *ramme
       m_rammerState(false),
       m_frictionState(false),
       m_remoteControl(),
+      m_vt13RemoteControl(),
       m_ws2812(&htim1, TIM_CHANNEL_1),
       m_isInitComplete(false),
       m_lastShootCmd(0) {}
@@ -61,6 +62,7 @@ void Gimbal::init()
     CAN_Init(&hcan1, can1RxCallback);
     CAN_Init(&hcan2, can2RxCallback);
     UART_Init(&huart3, dr16RxCallback, 36);
+    UART_Init(&huart1, vt13RxCallback, UART_BUFFER_SIZE);
     m_imu->init();
     m_ws2812.Init();
 
@@ -86,6 +88,66 @@ void Gimbal::controlLoop()
     transmitGimbalDataViaUsb();
 }
 
+uint8_t Gimbal::sendUsbData()
+{
+    uint32_t txbufIndex      = 0;
+    m_usbTxBuf[txbufIndex++] = m_usbTxSOF; // SOF 0x3A
+
+    // (1-4)
+    const float rollAngle = m_imu->getEulerAngle().x;
+    memcpy(m_usbTxBuf + txbufIndex, &rollAngle, sizeof(float));
+    txbufIndex += sizeof(float);
+
+    // (5-8)
+    const float pitchAngle = -m_imu->getEulerAngle().y;
+    memcpy(m_usbTxBuf + txbufIndex, &pitchAngle, sizeof(float)); // rad unit
+    txbufIndex += sizeof(float);
+
+    // (9-12)
+    const float yawAngle = m_imu->getEulerAngle().z;
+    memcpy(m_usbTxBuf + txbufIndex, &yawAngle, sizeof(float)); // rad unit
+    txbufIndex += sizeof(float);
+
+    // (13-28)
+    const float *quaternion = m_imu->getQuaternion();
+    memcpy(m_usbTxBuf + txbufIndex, quaternion, sizeof(float) * 4);
+    txbufIndex += sizeof(float) * 4;
+
+    // (29-32)
+    const float bulletSpeed = 0.0f;
+    memcpy(m_usbTxBuf + txbufIndex, &bulletSpeed, sizeof(float));
+    txbufIndex += sizeof(float);
+
+    // (33)
+    // add 1 byte keyboard toggle target press status
+    // cause' the remote control is running in 1000hz update frequency, and gimbal is 200 hz update freequency,
+    // if we use keyboard event to send KEY_B press event,
+    // then will be an risk that most of times the press event will be reset as not pressed
+    // in the remote control update loop, and seldomly the press event can be send correctly;
+    // one solution is set an press key b flag and cosume it in the sendUsbData function.
+    // but it will result in shit code.
+    // so plan b: the nuc will deal with the press event. we only send key status there.
+    // 26.3.30 Xinrong.Li
+    const bool dr16Connected      = m_remoteControl.isConnected();
+    const bool vt13Connected      = m_vt13RemoteControl.isConnected();
+    const bool dr16ManualEnabled  =
+        dr16Connected && m_remoteControl.getRightSwitchStatus() == DR16RemoteControl::SwitchStatus3Pos::SWITCH_MIDDLE;
+    const bool vt13ControlEnabled = vt13Connected && (!dr16Connected || dr16ManualEnabled);
+    uint8_t keyBPressed           = 0u;
+    if (vt13ControlEnabled &&
+        m_vt13RemoteControl.getKeyboardKeyStatus(VT13RemoteControl::KeyboardKeyIndex::KEY_B) == RemoteControl::KeyStatus::KEY_PRESS) {
+        keyBPressed = 1u;
+    }
+    m_usbTxBuf[txbufIndex] = keyBPressed;
+    txbufIndex += 1;
+
+    // (34)
+    m_usbTxBuf[txbufIndex] = m_usbTxEOF; // EOF
+    txbufIndex += 1;
+
+    return CDC_Transmit_FS(m_usbTxBuf, static_cast<uint16_t>(txbufIndex));
+}
+
 void Gimbal::imuLoop()
 {
     if (!m_isInitComplete) return;
@@ -106,42 +168,141 @@ void Gimbal::receiveRemoteControlDataFromISR(const uint8_t *rxData)
     m_remoteControl.receiveRxDataFromISR(rxData);
 }
 
+void Gimbal::receiveVt13RemoteControlDataFromISR(const uint8_t *rxData)
+{
+    m_vt13RemoteControl.receiveRxDataFromISR(rxData);
+}
+
+// void Gimbal::modeSelect()
+// {
+//     m_remoteControl.updateEvent();
+//     if (!m_remoteControl.isConnected()) {
+//         m_gimbalMode = GIMBAL_NO_FORCE;
+//         return;
+//     }
+
+//     switch (m_remoteControl.getRightSwitchStatus()) {
+//         case Dr16RemoteControl::SwitchStatus3Pos::SWITCH_DOWN:
+//             m_gimbalMode = GIMBAL_NO_FORCE;
+//             if (m_remoteControl.getLeftSwitchEvent() == Dr16RemoteControl::SwitchEvent3Pos::SWITCH_TOGGLE_MIDDLE_UP) {
+//                 m_gimbalMode = CALIBRATION;
+//             }
+//             break;
+
+//         case Dr16RemoteControl::SwitchStatus3Pos::SWITCH_MIDDLE:
+//             m_gimbalMode = MANUAL_CONTROL;
+//             break;
+
+//         case Dr16RemoteControl::SwitchStatus3Pos::SWITCH_UP:
+//             m_gimbalMode = AUTO_CONTROL;
+//             break;
+
+//         default:
+//             break;
+//     }
+// }
+
 void Gimbal::modeSelect()
 {
     m_remoteControl.updateEvent();
-    if (!m_remoteControl.isConnected()) {
-        m_gimbalMode = GIMBAL_NO_FORCE;
+    m_vt13RemoteControl.updateEvent();
+
+    const bool dr16Connected      = m_remoteControl.isConnected();
+    const bool vt13Connected      = m_vt13RemoteControl.isConnected();
+    const bool dr16ManualEnabled  =
+        dr16Connected && m_remoteControl.getRightSwitchStatus() == DR16RemoteControl::SwitchStatus3Pos::SWITCH_MIDDLE;
+    const bool vt13ControlEnabled = vt13Connected && (!dr16Connected || dr16ManualEnabled);
+    const bool vt13ForceOffRequested =
+        vt13Connected && !dr16Connected &&
+        m_vt13RemoteControl.getModeSwitchStatus() == VT13RemoteControl::SwitchStatus3Pos::SWITCH_UP;
+
+    if (!dr16Connected && !vt13Connected) {
+        m_gimbalMode      = GIMBAL_NO_FORCE;
         return;
     }
 
-    switch (m_remoteControl.getRightSwitchStatus()) {
-        case Dr16RemoteControl::SwitchStatus3Pos::SWITCH_DOWN:
-            m_gimbalMode = GIMBAL_NO_FORCE;
-            if (m_remoteControl.getLeftSwitchEvent() == Dr16RemoteControl::SwitchEvent3Pos::SWITCH_TOGGLE_MIDDLE_UP) {
-                m_gimbalMode = CALIBRATION;
-            }
-            break;
+    if (vt13ForceOffRequested) {
+        m_gimbalMode      = GIMBAL_NO_FORCE;
+        return;
+    }
 
-        case Dr16RemoteControl::SwitchStatus3Pos::SWITCH_MIDDLE:
-            m_gimbalMode = MANUAL_CONTROL;
-            break;
+    if (!dr16Connected && vt13Connected && m_gimbalMode == GIMBAL_NO_FORCE) {
+        m_gimbalMode = MANUAL_CONTROL;
+    }
 
-        case Dr16RemoteControl::SwitchStatus3Pos::SWITCH_UP:
+    if (dr16Connected) {
+        switch (m_remoteControl.getRightSwitchStatus()) {
+            case DR16RemoteControl::SwitchStatus3Pos::SWITCH_DOWN:
+                m_gimbalMode  = GIMBAL_NO_FORCE;
+                if (m_remoteControl.getLeftSwitchEvent() == DR16RemoteControl::SwitchEvent3Pos::SWITCH_TOGGLE_MIDDLE_UP) {
+                    m_gimbalMode = CALIBRATION; // 进入校准模式
+                }
+                break;
+
+            case DR16RemoteControl::SwitchStatus3Pos::SWITCH_MIDDLE:
+                m_gimbalMode = MANUAL_CONTROL;
+                break;
+
+            case DR16RemoteControl::SwitchStatus3Pos::SWITCH_UP:
+                m_gimbalMode  = AUTO_CONTROL;
+                break;
+
+            default:
+                break;
+        }
+    } 
+
+    if (vt13ControlEnabled &&
+        m_vt13RemoteControl.getMouseRightKeyEvent() == RemoteControl::KeyEvent::KEY_TOGGLE_RELEASE_PRESS) {
+        if (m_gimbalMode == MANUAL_CONTROL) {
             m_gimbalMode = AUTO_CONTROL;
-            break;
-
-        default:
-            break;
+        } else if (m_gimbalMode == AUTO_CONTROL) {
+            m_gimbalMode = MANUAL_CONTROL;
+        }
     }
 }
 
+
 void Gimbal::targetOrientationPlan()
 {
+    auto getMouseStickEquivalent = [](fp32 mouseAxis, fp32 gain) {
+        fp32 stickEquivalent = mouseAxis * gain;
+        GSRLMath::constrain(stickEquivalent, DT7_NORMALIZED_INPUT_LIMIT );
+        return stickEquivalent;
+    };
+
+    const bool dr16Connected      = m_remoteControl.isConnected();
+    const bool vt13Connected      = m_vt13RemoteControl.isConnected();
+    const bool dr16ManualEnabled  =
+        dr16Connected && m_remoteControl.getRightSwitchStatus() == DR16RemoteControl::SwitchStatus3Pos::SWITCH_MIDDLE;
+    const bool vt13ControlEnabled = vt13Connected && (!dr16Connected || dr16ManualEnabled);
+
+    // switch (m_gimbalMode) {
+    //     case MANUAL_CONTROL:
+    //         setYawAngle(m_yawTargetAngle - rcStickDeadZoneFilter(m_remoteControl.getRightStickX()) * DT7_STICK_YAW_SENSITIVITY*0.6);
+    //         setPitchAngle(m_pitchTargetAngle - rcStickDeadZoneFilter(-m_remoteControl.getRightStickY()) * DT7_STICK_PITCH_SENSITIVITY*0.6);
+    //         break;
     switch (m_gimbalMode) {
-        case MANUAL_CONTROL:
-            setYawAngle(m_yawTargetAngle - rcStickDeadZoneFilter(m_remoteControl.getRightStickX()) * DT7_STICK_YAW_SENSITIVITY*0.6);
-            setPitchAngle(m_pitchTargetAngle - rcStickDeadZoneFilter(-m_remoteControl.getRightStickY()) * DT7_STICK_PITCH_SENSITIVITY*0.6);
+        case MANUAL_CONTROL: {
+            fp32 yawInput   = 0.0f;
+            fp32 pitchInput = 0.0f;
+
+            if (dr16Connected) {
+                yawInput += m_remoteControl.getRightStickX();
+                pitchInput += m_remoteControl.getRightStickY();
+            }
+
+            if (vt13ControlEnabled) {
+                yawInput += getMouseStickEquivalent(m_vt13RemoteControl.getMouseX(), DT7_MOUSE_YAW_STICK_GAIN);
+                pitchInput += getMouseStickEquivalent(m_vt13RemoteControl.getMouseY(), DT7_MOUSE_PITCH_STICK_GAIN);
+            }
+            GSRLMath::constrain(yawInput, DT7_NORMALIZED_INPUT_LIMIT);
+            GSRLMath::constrain(pitchInput, DT7_NORMALIZED_INPUT_LIMIT);
+
+            setYawAngle(m_yawTargetAngle - yawInput * DT7_STICK_YAW_SENSITIVITY * 0.6);
+            setPitchAngle(m_pitchTargetAngle - pitchInput * DT7_STICK_PITCH_SENSITIVITY * 0.6);
             break;
+        }
 
         case AUTO_CONTROL:
             if (rxMsgViaUsb.found) {
@@ -155,96 +316,246 @@ void Gimbal::targetOrientationPlan()
     }
 }
 
+// void Gimbal::shootPlan()
+// {
+//     switch (m_gimbalMode) {
+//         case AUTO_CONTROL: {
+//     // 摩擦轮开关保持不变
+//     if (m_remoteControl.getLeftSwitchEvent() == DR16RemoteControl::SwitchEvent3Pos::SWITCH_TOGGLE_MIDDLE_UP) {
+//         m_frictionState = !m_frictionState;
+//     }
+
+//     // 允许拨弹条件
+//     m_feederArmed = m_frictionState ;//&& (m_leftShooterHeat < 350);
+//     if (!m_feederArmed) {
+//         m_contFireEnable  = false;
+//         m_downHoldMs      = 0;
+//         m_downLatched     = false;
+//         m_contFireTimerMs = 0;
+//         return;
+//     }
+
+//     m_singleShotReq = false;
+    
+//     static float lastScrollWheel = 0.0f;
+//     static bool scrollWheelLatched = false;
+//     float currentScrollWheel = m_remoteControl.getScrollWheel();
+
+//     // 先检测“离开中位”的一次变化，触发后锁定；只有回中后才允许下一次触发
+//     if (!scrollWheelLatched) {
+//         if (fabsf(currentScrollWheel - lastScrollWheel) > 0.15f) {
+//             if (m_feederArmed) {
+//                 m_singleShotReq = true;
+//             }
+//             scrollWheelLatched = true;
+//         }
+//     } else if (fabsf(currentScrollWheel) < 0.05f) {
+//         scrollWheelLatched = false;
+//     }
+//     lastScrollWheel = currentScrollWheel;
+//             return;
+//         }
+//         case MANUAL_CONTROL: {
+//             // 摩擦轮开关保持不变
+//             if (m_remoteControl.getLeftSwitchEvent() == DR16RemoteControl::SwitchEvent3Pos::SWITCH_TOGGLE_MIDDLE_UP) {
+//                 m_frictionState = !m_frictionState;
+//             }
+
+//             // 允许拨弹条件
+//             m_feederArmed = m_frictionState; //&& (m_leftShooterHeat < 350);
+//             if (!m_feederArmed) {
+//                 m_contFireEnable  = false;
+//                 m_downHoldMs      = 0;
+//                 m_downLatched     = false;
+//                 m_contFireTimerMs = 0;
+//                 return;
+//             }
+
+//             m_singleShotReq = false;
+
+//             static float lastScrollWheel = 0.0f;
+//             static bool scrollWheelLatched = false;
+//             float currentScrollWheel       = m_remoteControl.getScrollWheel();
+
+//             // 先检测“离开中位”的一次变化，触发后锁定；只有回中后才允许下一次触发
+//             if (!scrollWheelLatched) {
+//                 if (fabsf(currentScrollWheel - lastScrollWheel) > 0.15f) {
+//                     if (m_feederArmed) {
+//                         m_singleShotReq = true;
+//                     }
+//                     scrollWheelLatched = true;
+//                 }
+//             } else if (fabsf(currentScrollWheel) < 0.05f) {
+//                 scrollWheelLatched = false;
+//             }
+//             lastScrollWheel = currentScrollWheel;
+
+//             // 左拨杆打到下档 -> 开启连发
+//             if (m_remoteControl.getLeftSwitchStatus() == DR16RemoteControl::SwitchStatus3Pos::SWITCH_DOWN) {
+//                 m_contFireEnable = m_feederArmed;
+//             } else {
+//                 m_contFireEnable = false;
+//             }
+
+//             // 清除旧逻辑相关的状态变量，防止干扰
+//             m_downHoldMs  = 0;
+//             m_downLatched = false;
+//             break;
+//         }
+
+//         default:
+//             m_frictionState = false;
+//             break;
+//     }
+// }
+
 void Gimbal::shootPlan()
 {
-    switch (m_gimbalMode) {
-        case AUTO_CONTROL: {
-    // 摩擦轮开关保持不变
-    if (m_remoteControl.getLeftSwitchEvent() == Dr16RemoteControl::SwitchEvent3Pos::SWITCH_TOGGLE_MIDDLE_UP) {
-        m_frictionState = !m_frictionState;
+    const bool dr16Connected = m_remoteControl.isConnected();
+    const bool vt13ControlEnabled =
+        m_vt13RemoteControl.isConnected() &&
+        (!dr16Connected || m_remoteControl.getRightSwitchStatus() == DR16RemoteControl::SwitchStatus3Pos::SWITCH_MIDDLE);
+        
+    // const bool mouseRightAimMode =
+    //     vt13ControlEnabled &&
+    //     m_vt13RemoteControl.getMouseRightKeyStatus() == RemoteControl::KeyStatus::KEY_PRESS;
+    // const bool mouseLeftToggleFire =
+    //     vt13ControlEnabled &&
+    //     m_vt13RemoteControl.getMouseLeftKeyStatus() == RemoteControl::KeyStatus::KEY_PRESS;
+    // const bool mouseLeftSingleShot =
+    //     vt13ControlEnabled &&
+    //     m_vt13RemoteControl.getMouseLeftKeyEvent() == RemoteControl::KeyEvent::KEY_TOGGLE_RELEASE_PRESS;
+    // const bool vt13TriggerShootCommand =
+    //     vt13ControlEnabled &&
+    //     m_vt13RemoteControl.getTriggerKeyEvent() == RemoteControl::KeyEvent::KEY_TOGGLE_RELEASE_PRESS;
+
+    if (dr16Connected) {
+        switch (m_gimbalMode) {
+            case AUTO_CONTROL: {   
+               // 摩擦轮开关保持不变
+                if (m_remoteControl.getLeftSwitchEvent() == DR16RemoteControl::SwitchEvent3Pos::SWITCH_TOGGLE_MIDDLE_UP) {
+                m_frictionState = !m_frictionState;
+            }
+            // 允许拨弹条件
+                m_feederArmed = m_frictionState ;//&& (m_leftShooterHeat < 350);
+                if (!m_feederArmed) {
+                    m_contFireEnable  = false;
+                    m_downHoldMs      = 0;
+                    m_downLatched     = false;
+                    m_contFireTimerMs = 0;
+                    return;
+                }
+
+                m_singleShotReq = false;
+                
+                static float lastScrollWheel = 0.0f;
+                static bool scrollWheelLatched = false;
+                float currentScrollWheel = m_remoteControl.getScrollWheel();
+
+                // 先检测“离开中位”的一次变化，触发后锁定；只有回中后才允许下一次触发
+                if (!scrollWheelLatched) {
+                    if (fabsf(currentScrollWheel - lastScrollWheel) > 0.15f) {
+                        if (m_feederArmed) {
+                            m_singleShotReq = true;
+                        }
+                        scrollWheelLatched = true;
+                    }
+                } else if (fabsf(currentScrollWheel) < 0.05f) {
+                    scrollWheelLatched = false;
+                }
+                lastScrollWheel = currentScrollWheel;
+                return;
+            }
+
+            case MANUAL_CONTROL: {
+                // 摩擦轮开关保持不变
+                if (m_remoteControl.getLeftSwitchEvent() == DR16RemoteControl::SwitchEvent3Pos::SWITCH_TOGGLE_MIDDLE_UP) {
+                    m_frictionState = !m_frictionState;
+                }
+
+                // 允许拨弹条件
+                m_feederArmed = m_frictionState; //&& (m_leftShooterHeat < 350);
+                if (!m_feederArmed) {
+                    m_contFireEnable  = false;
+                    m_downHoldMs      = 0;
+                    m_downLatched     = false;
+                    m_contFireTimerMs = 0;
+                    return;
+                }
+
+                m_singleShotReq = false;
+
+                static float lastScrollWheel = 0.0f;
+                static bool scrollWheelLatched = false;
+                float currentScrollWheel       = m_remoteControl.getScrollWheel();
+
+                // 先检测“离开中位”的一次变化，触发后锁定；只有回中后才允许下一次触发
+                if (!scrollWheelLatched) {
+                    if (fabsf(currentScrollWheel - lastScrollWheel) > 0.15f) {
+                        if (m_feederArmed) {
+                            m_singleShotReq = true;
+                        }
+                        scrollWheelLatched = true;
+                    }
+                } else if (fabsf(currentScrollWheel) < 0.05f) {
+                    scrollWheelLatched = false;
+                }
+                lastScrollWheel = currentScrollWheel;
+
+                // 左拨杆打到下档 -> 开启连发
+                if (m_remoteControl.getLeftSwitchStatus() == DR16RemoteControl::SwitchStatus3Pos::SWITCH_DOWN) {
+                    m_contFireEnable = m_feederArmed;
+                } else {
+                    m_contFireEnable = false;
+                }
+
+                // 清除旧逻辑相关的状态变量，防止干扰
+                m_downHoldMs  = 0;
+                m_downLatched = false;
+                break;
+            }
+
+            default:
+            m_frictionState = false;
+            break;
+        }
     }
 
-    // 允许拨弹条件
-    m_feederArmed = m_frictionState ;//&& (m_leftShooterHeat < 350);
+    if (vt13ControlEnabled) {
+        if (m_vt13RemoteControl.getKeyboardKeyEvent(VT13RemoteControl::KeyboardKeyIndex::KEY_CTRL) == RemoteControl::KeyEvent::KEY_TOGGLE_RELEASE_PRESS) {
+            m_frictionState = !m_frictionState;
+            m_feederArmed   = m_frictionState;
+            if (!m_frictionState) {
+                m_contFireEnable  = false;
+                m_contFireTimerMs = 0;
+                m_contFirePending = 0;
+            }
+        }
+
+        if (m_frictionState) {
+            if (m_vt13RemoteControl.getMouseLeftKeyEvent() == RemoteControl::KeyEvent::KEY_TOGGLE_RELEASE_PRESS) {
+                m_singleShotReq = true;
+            }
+
+            m_contFireEnable = (m_vt13RemoteControl.getMouseLeftKeyStatus() == RemoteControl::KeyStatus::KEY_PRESS);
+
+            if (m_vt13RemoteControl.getTriggerKeyEvent() == RemoteControl::KeyEvent::KEY_TOGGLE_RELEASE_PRESS) {
+                m_singleShotReq = true;
+            }
+        } else {
+            m_contFireEnable  = false;
+            m_contFireTimerMs = 0;
+            m_contFirePending = 0;
+        }
+    }
+
+    m_feederArmed = m_frictionState; //&& (m_leftShooterHeat < 350);
     if (!m_feederArmed) {
         m_contFireEnable  = false;
         m_downHoldMs      = 0;
         m_downLatched     = false;
         m_contFireTimerMs = 0;
         return;
-    }
-
-    m_singleShotReq = false;
-    
-    static float lastScrollWheel = 0.0f;
-    static bool scrollWheelLatched = false;
-    float currentScrollWheel = m_remoteControl.getScrollWheel();
-
-    // 先检测“离开中位”的一次变化，触发后锁定；只有回中后才允许下一次触发
-    if (!scrollWheelLatched) {
-        if (fabsf(currentScrollWheel - lastScrollWheel) > 0.15f) {
-            if (m_feederArmed) {
-                m_singleShotReq = true;
-            }
-            scrollWheelLatched = true;
-        }
-    } else if (fabsf(currentScrollWheel) < 0.05f) {
-        scrollWheelLatched = false;
-    }
-    lastScrollWheel = currentScrollWheel;
-            return;
-        }
-        case MANUAL_CONTROL: {
-            // 摩擦轮开关保持不变
-            if (m_remoteControl.getLeftSwitchEvent() == Dr16RemoteControl::SwitchEvent3Pos::SWITCH_TOGGLE_MIDDLE_UP) {
-                m_frictionState = !m_frictionState;
-            }
-
-            // 允许拨弹条件
-            m_feederArmed = m_frictionState; //&& (m_leftShooterHeat < 350);
-            if (!m_feederArmed) {
-                m_contFireEnable  = false;
-                m_downHoldMs      = 0;
-                m_downLatched     = false;
-                m_contFireTimerMs = 0;
-                return;
-            }
-
-            m_singleShotReq = false;
-
-            static float lastScrollWheel = 0.0f;
-            static bool scrollWheelLatched = false;
-            float currentScrollWheel       = m_remoteControl.getScrollWheel();
-
-            // 先检测“离开中位”的一次变化，触发后锁定；只有回中后才允许下一次触发
-            if (!scrollWheelLatched) {
-                if (fabsf(currentScrollWheel - lastScrollWheel) > 0.15f) {
-                    if (m_feederArmed) {
-                        m_singleShotReq = true;
-                    }
-                    scrollWheelLatched = true;
-                }
-            } else if (fabsf(currentScrollWheel) < 0.05f) {
-                scrollWheelLatched = false;
-            }
-            lastScrollWheel = currentScrollWheel;
-
-            // 左拨杆打到下档 -> 开启连发
-            if (m_remoteControl.getLeftSwitchStatus() == Dr16RemoteControl::SwitchStatus3Pos::SWITCH_DOWN) {
-                m_contFireEnable = m_feederArmed;
-            } else {
-                m_contFireEnable = false;
-            }
-
-            // 清除旧逻辑相关的状态变量，防止干扰
-            m_downHoldMs  = 0;
-            m_downLatched = false;
-            break;
-        }
-
-        default:
-            m_frictionState = false;
-            break;
     }
 }
 
@@ -396,17 +707,17 @@ void Gimbal::shootControl()
                 }
 
                 // 卡弹检测：独立 void 函数（内部可切换状态到 stateUnjamming）
-                // rammerStuckControl();
+                rammerStuckControl();
 
             } break;
 
             case stateUnjamming:
             default: {
                 // 解卡动作：建议用 openloop 给反向电流/电压（不走位置环）
-                // m_rammerMotor->openloopControl(UNJAM_TORQUE);
+                m_rammerMotor->openloopControl(UNJAM_TORQUE);
 
                 // 解卡计时与状态切回：独立 void 函数
-                // rammerStuckControl();
+                rammerStuckControl();
             } break;
         }
     }
@@ -506,9 +817,9 @@ void Gimbal::ledControl()
 
 void Gimbal::transmitGimbalMotorData()
 {
-    HAL_CAN_AddTxMessage(&hcan1, m_yawMotor->getMotorControlHeader(), (*m_yawMotor + *m_rammerMotor).getMotorControlData(), NULL);
+    HAL_CAN_AddTxMessage(&hcan1, m_yawMotor->getMotorControlHeader(), m_yawMotor->getMotorControlData(), NULL);
     HAL_CAN_AddTxMessage(&hcan2, m_pitchMotor->getMotorControlHeader(), m_pitchMotor->getMotorControlData(), NULL);
-    HAL_CAN_AddTxMessage(&hcan1, m_frictionLeftMotor->getMotorControlHeader(), (*m_frictionLeftMotor + *m_frictionRightMotor).getMotorControlData(), NULL);
+    HAL_CAN_AddTxMessage(&hcan1, m_frictionLeftMotor->getMotorControlHeader(), m_frictionLeftMotor->getMotorControlData(), NULL);
 }
 
 void Gimbal::transmitGimbalDataViaUsb()
@@ -521,7 +832,7 @@ void Gimbal::transmitGimbalDataViaUsb()
     m_txMsgViaUsb.q[1]                   = m_imu->getQuaternion()[1]; // x
     m_txMsgViaUsb.q[2]                   = m_imu->getQuaternion()[2]; // y
     m_txMsgViaUsb.q[3]                   = m_imu->getQuaternion()[3]; // z
-    m_txMsgViaUsb.toogleTargetKeyPressed = (uint8_t)(m_remoteControl.getKeyboardKeyStatus(Dr16RemoteControl::KeyboardKeyIndex::KEY_B) == RemoteControl::KeyStatus::KEY_PRESS);
+    m_txMsgViaUsb.toogleTargetKeyPressed = (uint8_t)(m_remoteControl.getKeyboardKeyStatus(DR16RemoteControl::KeyboardKeyIndex::KEY_B) == RemoteControl::KeyStatus::KEY_PRESS);
     m_txMsgViaUsb.EOF_                   = USB_TX_EOF;
     m_txMsgViaUsb.bulletSpeed            = 0.f; // TODO: require referee system's data
     memcpy(m_usbTxBuffer, &m_txMsgViaUsb, sizeof(txMsgViaUsb_t));
