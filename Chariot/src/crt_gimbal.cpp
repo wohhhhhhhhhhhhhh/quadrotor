@@ -289,7 +289,7 @@ void Gimbal::targetOrientationPlan()
 
             if (dr16Connected) {
                 yawInput += m_remoteControl.getRightStickX();
-                pitchInput += m_remoteControl.getRightStickY();
+                pitchInput -= m_remoteControl.getRightStickY();
             }
 
             if (vt13ControlEnabled) {
@@ -797,7 +797,6 @@ void Gimbal::ledControl()
             m_ws2812.SetColor(i, r, g, b);
         }
             m_ws2812.Update();
-
             isLedChanged = false;
         }
     }
@@ -840,17 +839,17 @@ inline void Gimbal::setPitchAngle(const fp32 &targetAngle)
     else if (constrainedAngle < PITCH_LOWER_LIMIT)
         constrainedAngle = PITCH_LOWER_LIMIT;
     
-    // 第二层：根据编码器位置的硬限位（电机保护）
-    const fp32 currentPitchMotorAngle =
-        GSRLMath::normalizeDeltaAngle(m_pitchMotor->getCurrentAngle());
-    const fp32 pitchError = constrainedAngle - m_eulerAngle.y;
+    // // 第二层：根据编码器位置的硬限位（电机保护）
+    // const fp32 currentPitchMotorAngle =
+    //     GSRLMath::normalizeDeltaAngle(m_pitchMotor->getCurrentAngle());
+    // const fp32 pitchError = constrainedAngle - m_eulerAngle.y;
     
-    // 如果当前已接近硬限位，防止继续往该方向转
-    if (currentPitchMotorAngle >= PITCH_MOTOR_ENCODER_UPPER_LIMIT_RAD && pitchError > 0.0f) {
-        constrainedAngle = m_eulerAngle.y;
-    } else if (currentPitchMotorAngle <= PITCH_MOTOR_ENCODER_LOWER_LIMIT_RAD && pitchError < 0.0f) {
-        constrainedAngle = m_eulerAngle.y;
-    }
+    // // 如果当前已接近硬限位，防止继续往该方向转
+    // if (currentPitchMotorAngle >= PITCH_MOTOR_ENCODER_UPPER_LIMIT_RAD && pitchError > 0.0f) {
+    //     constrainedAngle = m_eulerAngle.y;
+    // } else if (currentPitchMotorAngle <= PITCH_MOTOR_ENCODER_LOWER_LIMIT_RAD && pitchError < 0.0f) {
+    //     constrainedAngle = m_eulerAngle.y;
+    // }
     
     m_pitchTargetAngle = constrainedAngle;
 }
@@ -862,9 +861,9 @@ inline void Gimbal::setYawAngle(const fp32 &targetAngle)
         GSRLMath::normalizeDeltaAngle(m_yawMotor->getCurrentAngle());
     const fp32 yawError = GSRLMath::normalizeDeltaAngle(constrainedAngle - m_eulerAngle.z);
 
-    if (currentYawMotorAngle >= YAW_MOTOR_ENCODER_UPPER_LIMIT_RAD && yawError > 0.0f) {
+    if (currentYawMotorAngle >= YAW_MOTOR_ENCODER_UPPER_LIMIT_RAD && yawError < 0.0f) {
         constrainedAngle = m_eulerAngle.z;
-    } else if (currentYawMotorAngle <= YAW_MOTOR_ENCODER_LOWER_LIMIT_RAD && yawError < 0.0f) {
+    } else if (currentYawMotorAngle <= YAW_MOTOR_ENCODER_LOWER_LIMIT_RAD && yawError > 0.0f) {
         constrainedAngle = m_eulerAngle.z;
     }
 

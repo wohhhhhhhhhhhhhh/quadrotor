@@ -112,13 +112,13 @@
 
 // Pitch motor encoder hard limits. Unit: rad, signed motor angle [-PI, PI).
 // These limits are independent from the IMU pitch target soft limits above.
-#define PITCH_MOTOR_ENCODER_UPPER_LIMIT_RAD 0.18f
-#define PITCH_MOTOR_ENCODER_LOWER_LIMIT_RAD -0.60f
+#define PITCH_MOTOR_ENCODER_UPPER_LIMIT_RAD 6.2f
+#define PITCH_MOTOR_ENCODER_LOWER_LIMIT_RAD 6.0f
 
 // Yaw motor encoder hard limits. Unit: rad, signed motor angle [-PI, PI).
 // Do not limit yaw by fixed IMU yaw because the quadrotor body yaw can move.
-#define YAW_MOTOR_ENCODER_UPPER_LIMIT_RAD 0.78f
-#define YAW_MOTOR_ENCODER_LOWER_LIMIT_RAD -0.78f
+#define YAW_MOTOR_ENCODER_UPPER_LIMIT_RAD 2.6f
+#define YAW_MOTOR_ENCODER_LOWER_LIMIT_RAD 1.3f
 /******************************************************************************
  *                            发射机构参数
  ******************************************************************************/
