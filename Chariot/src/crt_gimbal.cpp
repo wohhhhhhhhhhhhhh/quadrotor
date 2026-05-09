@@ -62,7 +62,7 @@ void Gimbal::init()
     CAN_Init(&hcan1, can1RxCallback);
     CAN_Init(&hcan2, can2RxCallback);
     UART_Init(&huart3, dr16RxCallback, 36);
-    UART_Init(&huart1, vt13RxCallback, UART_BUFFER_SIZE);
+    UART_Init(&huart6, vt13RxCallback, UART_BUFFER_SIZE);
     m_imu->init();
     m_ws2812.Init();
 
@@ -294,7 +294,7 @@ void Gimbal::targetOrientationPlan()
 
             if (vt13ControlEnabled) {
                 yawInput += getMouseStickEquivalent(m_vt13RemoteControl.getMouseX(), DT7_MOUSE_YAW_STICK_GAIN);
-                pitchInput += getMouseStickEquivalent(m_vt13RemoteControl.getMouseY(), DT7_MOUSE_PITCH_STICK_GAIN);
+                pitchInput -= getMouseStickEquivalent(m_vt13RemoteControl.getMouseY(), DT7_MOUSE_PITCH_STICK_GAIN);
             }
             GSRLMath::constrain(yawInput, DT7_NORMALIZED_INPUT_LIMIT);
             GSRLMath::constrain(pitchInput, DT7_NORMALIZED_INPUT_LIMIT);
@@ -707,7 +707,7 @@ void Gimbal::shootControl()
                 }
 
                 // 卡弹检测：独立 void 函数（内部可切换状态到 stateUnjamming）
-                rammerStuckControl();
+                //rammerStuckControl();
 
             } break;
 
@@ -717,7 +717,7 @@ void Gimbal::shootControl()
                 m_rammerMotor->openloopControl(UNJAM_TORQUE);
 
                 // 解卡计时与状态切回：独立 void 函数
-                rammerStuckControl();
+                //rammerStuckControl();
             } break;
         }
     }
@@ -804,9 +804,9 @@ void Gimbal::ledControl()
 
 void Gimbal::transmitGimbalMotorData()
 {
-    HAL_CAN_AddTxMessage(&hcan1, m_yawMotor->getMotorControlHeader(), m_yawMotor->getMotorControlData(), NULL);
+    HAL_CAN_AddTxMessage(&hcan1, m_yawMotor->getMotorControlHeader(), (*m_yawMotor + *m_rammerMotor).getMotorControlData(), NULL);
     HAL_CAN_AddTxMessage(&hcan2, m_pitchMotor->getMotorControlHeader(), m_pitchMotor->getMotorControlData(), NULL);
-    HAL_CAN_AddTxMessage(&hcan1, m_frictionLeftMotor->getMotorControlHeader(), m_frictionLeftMotor->getMotorControlData(), NULL);
+    HAL_CAN_AddTxMessage(&hcan1, m_frictionLeftMotor->getMotorControlHeader(), (*m_frictionLeftMotor + *m_frictionRightMotor).getMotorControlData(), NULL);
 }
 
 void Gimbal::transmitGimbalDataViaUsb()
