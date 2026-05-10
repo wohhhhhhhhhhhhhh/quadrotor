@@ -50,6 +50,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     Chariot/src/crt_gimbal.cpp
     Chariot/src/drv_ws2812.cpp
+    Chariot/src/UI.cpp
     Task/src/tsk_gimbal.cpp
     Task/src/tsk_imu.cpp
     Task/src/tsk_isr.cpp

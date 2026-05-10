@@ -19,6 +19,7 @@
 #include "para_gimbal.hpp"
 #include "drv_ws2812.hpp"
 #include "usbd_cdc_if.h"
+#include "UI.hpp"
 //#include "dvc_vofa.hpp"
 
 /* Exported types ------------------------------------------------------------*/
@@ -80,6 +81,7 @@ private:
     bool m_singleShotReq  = false; // 本周期产生一次单发请求（脉冲）
     bool m_contFireEnable = false; // 连发使能（按住时为true）
     bool m_feederArmed    = false; // 允许拨弹（摩擦轮开且热量允许等）
+    fp32 m_frictionTargetVelocity = FRICTION_TARGET_ANGULAR_VELOCITY;
 
     // 单发/连发判定计时
     uint32_t m_downHoldMs      = 0;     // 左三档保持DOWN计时（ms）
@@ -110,6 +112,9 @@ private:
     // LED Strip
     WS2812 m_ws2812;
 
+    // UI Interface
+    UI *m_uiInterface;
+
     // 标志位
     bool m_isInitComplete;
     uint8_t m_lastShootCmd; // 上一次 shoot_or_not 值，用于边沿检测
@@ -135,6 +140,12 @@ public:
     void receiveRemoteControlDataFromISR(const uint8_t *rxData);
     void receiveVt13RemoteControlDataFromISR(const uint8_t *rxData);
     uint8_t sendUsbData();
+    
+    /**
+     * @brief Get friction motor state
+     * @return true if friction is ON, false if friction is OFF
+     */
+    bool getFrictionState() const { return m_frictionState; }
     
 private:
     void modeSelect();
