@@ -35,6 +35,11 @@ void vt13RxCallback(uint8_t *Buffer, uint16_t Length)
     gimbal.receiveVt13RemoteControlDataFromISR(Buffer);
 }
 
+void refereeRxCallback(uint8_t *Buffer, uint16_t Length)
+{
+    gimbal.receiveRefereeDataFromISR(Buffer, Length);
+}
+
 
 void can1RxCallback(can_rx_message_t *pRxMsg)
 {

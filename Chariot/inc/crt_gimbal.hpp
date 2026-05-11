@@ -143,6 +143,7 @@ public:
     void receiveGimbalMotorDataFromISR(const can_rx_message_t *rxMessage);
     void receiveRemoteControlDataFromISR(const uint8_t *rxData);
     void receiveVt13RemoteControlDataFromISR(const uint8_t *rxData);
+    void receiveRefereeDataFromISR(const uint8_t *rxData, uint16_t length);
     uint8_t sendUsbData();
     
     /**

@@ -32,42 +32,42 @@
 #define YAW_OUTER_OUT_LIMIT           50.0f    // 50.0f
 #define YAW_OUTER_IOUT_LIMIT          0.0f     // 0.0f
 #define YAW_INNER_KP                  4500.0f  // 7000.0f
-#define YAW_INNER_KI                  0.0f     // 0.0f 
+#define YAW_INNER_KI                  0.0f     // 0.0f
 #define YAW_INNER_KD                  0.0f     // 26.0f
 #define YAW_INNER_OUT_LIMIT           16384.0f // 16384.0f
 #define YAW_INNER_IOUT_LIMIT          0.0f     // 0.0f
 #define YAW_INNER_LOWPASS_FILTER_PARA 0.8f     // 1.0f
 // 云台Pitch电机(DM4310)
 #define PITCH_OUTER_KP                  15.0f // 外环 15.0
-#define PITCH_OUTER_KI                  0.0f//0.0
-#define PITCH_OUTER_KD                  0.0f//0.0
-#define PITCH_OUTER_OUT_LIMIT           18.0f//18.0
-#define PITCH_OUTER_IOUT_LIMIT          0.1f//0.1
+#define PITCH_OUTER_KI                  0.0f  // 0.0
+#define PITCH_OUTER_KD                  0.0f  // 0.0
+#define PITCH_OUTER_OUT_LIMIT           18.0f // 18.0
+#define PITCH_OUTER_IOUT_LIMIT          0.1f  // 0.1
 #define PITCH_INNER_KP                  0.35f // 内环 0.35
-#define PITCH_INNER_KI                  0.0f//0.0
-#define PITCH_INNER_KD                  0.0f//0.05
-#define PITCH_INNER_OUT_LIMIT           5.0f//5.0
-#define PITCH_INNER_IOUT_LIMIT          0.0f//0.0
-#define PITCH_INNER_LOWPASS_FILTER_PARA 1.0f//1.0
+#define PITCH_INNER_KI                  0.0f  // 0.0
+#define PITCH_INNER_KD                  0.0f  // 0.05
+#define PITCH_INNER_OUT_LIMIT           5.0f  // 5.0
+#define PITCH_INNER_IOUT_LIMIT          0.0f  // 0.0
+#define PITCH_INNER_LOWPASS_FILTER_PARA 1.0f  // 1.0
 // 重力补偿前馈（Nm）
 #define PITCH_GRAVITY_COMPENSATE 0.0f
 // 摩擦轮(M3508)
-#define FRICTION_KP         380.0f//360
-#define FRICTION_KI         0.0f//10.0f
-#define FRICTION_KD         0.5f//1.0
+#define FRICTION_KP         380.0f // 360
+#define FRICTION_KI         0.0f   // 10.0f
+#define FRICTION_KD         0.5f   // 1.0
 #define FRICTION_OUT_LIMIT  15000.0f
 #define FRICTION_IOUT_LIMIT 2000.0f
 // 拨弹轮(M2006)
-#define RAMMER_INNER_KP         6500.0f//6000   /5000  
-#define RAMMER_INNER_KI         0.2f//0.5     
-#define RAMMER_INNER_KD         0.0f
-#define RAMMER_INNER_OUT_LIMIT  10000.0f
-#define RAMMER_INNER_IOUT_LIMIT 3000.0f
-#define RAMMER_OUTER_KP         11.0f //7.0   /9.0  
-#define RAMMER_OUTER_KI         0.0f
-#define RAMMER_OUTER_KD         8.0f //10.0     
-#define RAMMER_OUTER_OUT_LIMIT  60.0f    
-#define RAMMER_OUTER_IOUT_LIMIT 0.0f
+#define RAMMER_INNER_KP                  6500.0f // 6000   /5000
+#define RAMMER_INNER_KI                  0.2f    // 0.5
+#define RAMMER_INNER_KD                  0.0f
+#define RAMMER_INNER_OUT_LIMIT           10000.0f
+#define RAMMER_INNER_IOUT_LIMIT          3000.0f
+#define RAMMER_OUTER_KP                  11.0f // 7.0   /9.0
+#define RAMMER_OUTER_KI                  0.0f
+#define RAMMER_OUTER_KD                  8.0f // 10.0
+#define RAMMER_OUTER_OUT_LIMIT           60.0f
+#define RAMMER_OUTER_IOUT_LIMIT          0.0f
 #define RAMMER_INNER_LOWPASS_FILTER_PARA 0.4f
 
 /******************************************************************************
@@ -90,7 +90,7 @@
 #define MAG_OFFSET_Z   0.0f
 // 安装朝向修正旋转矩阵
 #define INSTALL_SPIN_MATRIX GSRLMath::Matrix33f((fp32[3][3]){{1, 0, 0}, {0, -1, 0}, {0, 0, -1}})
-///#define INSTALL_SPIN_MATRIX GSRLMath::Matrix33f((fp32[3][3]){{0, -1, 0}, {-1, 0, 0}, {0, 0, -1}})
+/// #define INSTALL_SPIN_MATRIX GSRLMath::Matrix33f((fp32[3][3]){{0, -1, 0}, {-1, 0, 0}, {0, 0, -1}})
 
 /******************************************************************************
  *                            遥控器灵敏度与死区
@@ -122,7 +122,7 @@
 /******************************************************************************
  *                            发射机构参数
  ******************************************************************************/
-#define FRICTION_TARGET_ANGULAR_VELOCITY     695.0f//700
+#define FRICTION_TARGET_ANGULAR_VELOCITY 667.0f // 700
 // 滚轮单发触发阈值
 #define FIRE_HOLD_MS 80
 
@@ -130,13 +130,13 @@
 #define FEEDER_REDUCTION_RATIO 36.0f
 
 // 单发步进（8弹位：1/8圈 * 减速比）
-#define FEED_STEP_REV  (0.125f * FEEDER_REDUCTION_RATIO)
+#define FEED_STEP_REV (0.125f * FEEDER_REDUCTION_RATIO)
 // 到位误差允许值也要乘以减速比放大
-#define FEED_REV_EPS   (0.020f * FEEDER_REDUCTION_RATIO)//0.01
-#define FEED_SPEED_EPS 1.0f  
+#define FEED_REV_EPS   (0.020f * FEEDER_REDUCTION_RATIO) // 0.01
+#define FEED_SPEED_EPS 1.0f
 
 // 连发节拍：连发模式下每隔多少ms触发一次“单发步进”
-#define CONT_FIRE_PERIOD_MS 80.0f//90
+#define CONT_FIRE_PERIOD_MS 80.0f // 90
 
 // 卡弹判定与解卡（tick计数版本，假设控制周期=1ms）
 #define JAM_SPEED_TH   0.6f
