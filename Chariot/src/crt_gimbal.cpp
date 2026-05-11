@@ -12,10 +12,13 @@
  */
 /* Includes ------------------------------------------------------------------*/
 #include "crt_gimbal.hpp"
+#include "dvc_referee.hpp"
 #include "dvc_remotecontrol.hpp"
 #include "para_gimbal.hpp"
 #include "tsk_isr.hpp"
 #include "drv_misc.h"
+#include "usart.h"
+#include "drv_uart.h"
 #include <math.h>
 #include "tim.h" /* For htim1 */
 #include "usbd_cdc_if.h"
@@ -37,6 +40,16 @@ static bool isLedChanged        = true;
 /* Function prototypes -------------------------------------------------------*/
 
 /* User code -----------------------------------------------------------------*/
+
+Referee g_referee(&huart6, nullptr);
+
+namespace {
+uint16_t getShooterHeatStopThreshold()
+{
+    const uint16_t heatLimit = g_referee.getRobotStatus().shooterBarrelHeatLimit;
+    return (heatLimit > 5) ? static_cast<uint16_t>(heatLimit - 5) : 0;
+}
+} // namespace
 
 /******************************************************************************
  *                            Gimbal类实现
@@ -65,7 +78,7 @@ void Gimbal::init()
     CAN_Init(&hcan2, can2RxCallback);
     UART_Init(&huart3, dr16RxCallback, 36);
     UART_Init(&huart6, vt13RxCallback, UART_BUFFER_SIZE);
-    UART_Init(&huart1, nullptr, 0);
+    UART_Init(&huart1, nullptr, UART_BUFFER_SIZE);
     
     // Initialize UI Interface with UART1
     m_uiInterface->init(&huart1, 1);
@@ -97,11 +110,14 @@ void Gimbal::controlLoop()
     transmitGimbalMotorData();
     transmitGimbalDataViaUsb();
     
-    // Update UI Interface
-    m_uiInterface->updateShootUI();
-    m_uiInterface->updateFrictionStateUI(m_frictionState);
-    // Update route (static/dynamic) every cycle
-    m_uiInterface->updateRouteUI();
+    // Throttle UI updates to reduce UART DMA contention (default period from m_uiUpdatePeriodMs)
+    m_uiTick++;
+    if ((m_uiTick % m_uiUpdatePeriodMs) == 0) {
+        m_uiInterface->updateShootUI();
+        m_uiInterface->updateFrictionStateUI(m_frictionState);
+        // Update route (static/dynamic)
+        m_uiInterface->updateRouteUI();
+    }
 }
 
 uint8_t Gimbal::sendUsbData()
@@ -239,15 +255,15 @@ void Gimbal::modeSelect()
         }
     } 
 
-    if (vt13ControlEnabled &&
-        m_vt13RemoteControl.getMouseRightKeyEvent() == RemoteControl::KeyEvent::KEY_TOGGLE_RELEASE_PRESS) {
-        if (m_gimbalMode == MANUAL_CONTROL) {
+    if (vt13ControlEnabled) {
+        if (m_vt13RemoteControl.getMouseRightKeyStatus() == RemoteControl::KeyStatus::KEY_PRESS) {
             m_gimbalMode = AUTO_CONTROL;
-        } else if (m_gimbalMode == AUTO_CONTROL) {
+        } else {
             m_gimbalMode = MANUAL_CONTROL;
         }
     }
 }
+
 
 
 void Gimbal::targetOrientationPlan()
@@ -304,6 +320,8 @@ void Gimbal::shootPlan()
     const bool vt13ControlEnabled =
         m_vt13RemoteControl.isConnected() &&
         (!dr16Connected || m_remoteControl.getRightSwitchStatus() == DR16RemoteControl::SwitchStatus3Pos::SWITCH_MIDDLE);
+    //m_leftShooterHeat = g_referee.getPowerHeatData().shooter17mmBarrelHeat;
+    const uint16_t shooterHeatStopThreshold = getShooterHeatStopThreshold();
 
     if (dr16Connected) {
         switch (m_gimbalMode) {
@@ -313,7 +331,7 @@ void Gimbal::shootPlan()
                 m_frictionState = !m_frictionState;
             }
             // 允许拨弹条件
-                m_feederArmed = m_frictionState ;//&& (m_leftShooterHeat < 350);
+                m_feederArmed = m_frictionState; //&& (m_leftShooterHeat < shooterHeatStopThreshold);
                 if (!m_feederArmed) {
                     m_contFireEnable  = false;
                     m_downHoldMs      = 0;
@@ -350,7 +368,7 @@ void Gimbal::shootPlan()
                 }
 
                 // 允许拨弹条件
-                m_feederArmed = m_frictionState; //&& (m_leftShooterHeat < 350);
+                m_feederArmed = m_frictionState; //&& (m_leftShooterHeat < shooterHeatStopThreshold);
                 if (!m_feederArmed) {
                     m_contFireEnable  = false;
                     m_downHoldMs      = 0;
@@ -425,7 +443,8 @@ void Gimbal::shootPlan()
                 m_singleShotReq = true;
             }
 
-            m_contFireEnable = (m_vt13RemoteControl.getMouseLeftKeyStatus() == RemoteControl::KeyStatus::KEY_PRESS);
+            m_contFireEnable = m_contFireEnable ||
+                               (m_vt13RemoteControl.getMouseLeftKeyStatus() == RemoteControl::KeyStatus::KEY_PRESS);
 
             if (m_vt13RemoteControl.getTriggerKeyEvent() == RemoteControl::KeyEvent::KEY_TOGGLE_RELEASE_PRESS) {
                 m_singleShotReq = true;
@@ -437,7 +456,7 @@ void Gimbal::shootPlan()
         }
     
 
-    m_feederArmed = m_frictionState; //&& (m_leftShooterHeat < 350);
+    m_feederArmed = m_frictionState; //&& (m_leftShooterHeat < shooterHeatStopThreshold);
     if (!m_feederArmed) {
         m_contFireEnable  = false;
         m_downHoldMs      = 0;

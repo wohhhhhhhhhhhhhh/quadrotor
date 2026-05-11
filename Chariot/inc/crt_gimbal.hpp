@@ -115,6 +115,10 @@ private:
     // UI Interface
     UI *m_uiInterface;
 
+    // UI update throttle (ms)
+    uint32_t m_uiTick = 0;
+    uint16_t m_uiUpdatePeriodMs = 20; // default 20ms => 50Hz
+
     // 标志位
     bool m_isInitComplete;
     uint8_t m_lastShootCmd; // 上一次 shoot_or_not 值，用于边沿检测
