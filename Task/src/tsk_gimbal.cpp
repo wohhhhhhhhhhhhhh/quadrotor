@@ -13,9 +13,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "crt_gimbal.hpp"
 #include "tsk_isr.hpp"
-//#include "dvc_vofa.hpp"
 #include "usb_device.h"
-
 /* Define --------------------------------------------------------------------*/
 /******************************************************************************
  *                            电机相关
@@ -74,7 +72,6 @@ SimplePID::PIDParam rightfrictionPIDParam = {
 SimplePID leftFrictionPID(SimplePID::PID_POSITION, leftfrictionPIDParam);
 SimplePID rightFrictionPID(SimplePID::PID_POSITION, rightfrictionPIDParam);
 // Rammer
-// 使用双环PID：外环(位置) -> 内环(速度) -> 电流
 CascadePID::PIDParam rammerOuterParam = {
     RAMMER_OUTER_KP,
     RAMMER_OUTER_KI,
@@ -97,8 +94,6 @@ MotorDM4310 pitchMotor(1, 3, 3.141593f, 30, 10, &pitchPID);
 MotorM2006 rammerMotor(6, &rammerPID, 0, 36);
 MotorM3508 leftFrictionMotor(4, &leftFrictionPID);
 MotorM3508 rightFrictionMotor(1, &rightFrictionPID);
-
-//Vofa<12> vofa;
 
 /******************************************************************************
  *                            IMU相关
@@ -132,19 +127,8 @@ extern "C" void gimbal_task(void *argument)
     //vofa.Init();
     TickType_t taskLastWakeTime = xTaskGetTickCount(); // 获取任务开始时间
     gimbal.init();
-    // pitchPID.setInnerLoopOutputPolarity(false);
-    // pitchMotor.setControllerOutputPolarity(false);
     while (1) {
         gimbal.controlLoop();
-        // vofa.writeData(rammerPID.getOuterLoop().pidGetData().setPoint);
-        // vofa.writeData(rammerPID.getOuterLoop().pidGetData().feedBackData);
-        // vofa.writeData(rammerPID.getOuterLoop().pidGetData().output);
-        // vofa.writeData(rammerPID.getInnerLoop().pidGetData().output);
-        // vofa.writeData((fp32)rammerMotor.getCurrentTorqueCurrent());
-        // vofa.writeData(rammerMotor.getCurrentAngle());
-        // vofa.writeData(leftFrictionMotor.getCurrentAngularVelocity());
-        // vofa.writeData(rightFrictionMotor.getCurrentAngularVelocity());
-        // vofa.sendFrame();
         vTaskDelayUntil(&taskLastWakeTime, 1); // 确保任务以定周期1ms运行
     }
 }

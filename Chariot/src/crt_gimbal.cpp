@@ -48,6 +48,27 @@ namespace
     constexpr uint16_t SHOOTER_17MM_HEAT_PER_SHOT  = 10;
     constexpr uint16_t SHOOTER_17MM_RESERVED_SHOTS = 2;
 
+    constexpr bool isRedTeamRobot(uint8_t robotID)
+    {
+        return robotID >= 1U && robotID <= 11U;
+    }
+
+    constexpr bool isBlueTeamRobot(uint8_t robotID)
+    {
+        return robotID >= 101U && robotID <= 111U;
+    }
+
+    LedColor resolveLedColorFromRobotID(uint8_t robotID, LedColor fallback)
+    {
+        if (isRedTeamRobot(robotID)) {
+            return LED_RED;
+        }
+        if (isBlueTeamRobot(robotID)) {
+            return LED_BLUE;
+        }
+        return fallback;
+    }
+
     bool canFireOneMore17mm(uint16_t currentHeat)
     {
         const uint16_t heatLimit = g_referee.getRobotStatus().shooterBarrelHeatLimit;
@@ -93,11 +114,39 @@ void Gimbal::init()
 
     m_imu->init();
     m_ws2812.Init();
+    HAL_Delay(10); // 等待驱动稳定
 
+    // 先清空所有LED为黑色，清除残留数据
     for (int i = 0; i < WS2812_LED_NUM; i++) {
-        m_ws2812.SetColor(i, 120, 0, 0);
+        m_ws2812.SetColor(i, 0, 0, 0);
     }
     m_ws2812.Update();
+    HAL_Delay(5); // 让黑色状态稳定
+
+    // 再根据机器人ID设置正确的颜色
+    currentLedColor = resolveLedColorFromRobotID(g_referee.getRobotID(), LED_RED);
+
+    uint8_t r = 0, g = 0, b = 0;
+    switch (currentLedColor) {
+        case LED_RED:
+            r = 240;
+            g = 0;
+            b = 0;
+            break;
+        case LED_BLUE:
+            r = 0;
+            g = 0;
+            b = 120;
+            break;
+        default:
+            break;
+    }
+
+    for (int i = 0; i < WS2812_LED_NUM; i++) {
+        m_ws2812.SetColor(i, r, g, b);
+    }
+    m_ws2812.Update();
+    HAL_Delay(5); // 让目标颜色稳定
 
     m_isInitComplete = true;
 }
@@ -301,7 +350,7 @@ void Gimbal::targetOrientationPlan()
             GSRLMath::constrain(pitchInput, DT7_NORMALIZED_INPUT_LIMIT);
 
             setYawAngle(m_yawTargetAngle - yawInput * DT7_STICK_YAW_SENSITIVITY * 0.6);
-            setPitchAngle(m_pitchTargetAngle - pitchInput * DT7_STICK_PITCH_SENSITIVITY * 0.6);
+            setPitchAngle(m_pitchTargetAngle - pitchInput * DT7_STICK_PITCH_SENSITIVITY * 0.8);
             break;
         }
 
@@ -428,10 +477,10 @@ void Gimbal::shootPlan()
         }
         if (m_vt13RemoteControl.getKeyboardKeyStatus(VT13RemoteControl::KeyboardKeyIndex::KEY_CTRL) == RemoteControl::KeyStatus::KEY_PRESS) {
             if (m_vt13RemoteControl.getKeyboardKeyEvent(VT13RemoteControl::KeyboardKeyIndex::KEY_Q) == RemoteControl::KeyEvent::KEY_TOGGLE_RELEASE_PRESS) {
-                m_frictionTargetVelocity += 5.0f;
+                m_frictionTargetVelocity += 10.0f;
             }
             if (m_vt13RemoteControl.getKeyboardKeyEvent(VT13RemoteControl::KeyboardKeyIndex::KEY_E) == RemoteControl::KeyEvent::KEY_TOGGLE_RELEASE_PRESS) {
-                m_frictionTargetVelocity -= 5.0f;
+                m_frictionTargetVelocity -= 10.0f;
             }
         }
         if (!m_frictionState) {
@@ -534,8 +583,6 @@ void Gimbal::shootControl()
         m_unjamCounter = 0;
         m_frictionLeftMotor->angularVelocityClosedloopControl(0.0f);
         m_frictionRightMotor->angularVelocityClosedloopControl(0.0f);
-        // m_frictionRightMotor->openloopControl(0.0f);
-        // m_frictionLeftMotor->openloopControl(0.0f);
 
         m_rammerMotor->openloopControl(0.0f);
         return;
@@ -546,8 +593,7 @@ void Gimbal::shootControl()
         } else {
             m_frictionLeftMotor->angularVelocityClosedloopControl(0.0f);
             m_frictionRightMotor->angularVelocityClosedloopControl(0.0f);
-            // m_frictionRightMotor->openloopControl(0.0f);
-            // m_frictionLeftMotor->openloopControl(0.0f);
+
         }
 
         bool singleShotTrigger = false;
@@ -659,25 +705,11 @@ void Gimbal::rammerStuckControl()
 
 void Gimbal::ledControl()
 {
-    float leftStickX            = m_remoteControl.getLeftStickX();
-    static bool isStickReturned = true;
+    const LedColor targetLedColor = resolveLedColorFromRobotID(g_referee.getRobotID(), currentLedColor);
 
-    if (leftStickX < -0.5f) {
-        if (isStickReturned) {
-            currentLedColor = LED_RED;
-            isLedChanged    = true;
-            isStickReturned = false;
-        }
-    } else if (leftStickX > 0.5f) {
-        if (isStickReturned) {
-            currentLedColor = LED_BLUE;
-            isLedChanged    = true;
-            isStickReturned = false;
-        }
-    } else if (fabsf(leftStickX) < 0.1f) {
-        isStickReturned = true;
-    } else {
-        isStickReturned = true;
+    if (targetLedColor != currentLedColor) {
+        currentLedColor = targetLedColor;
+        isLedChanged    = true;
     }
 
     if (isLedChanged) {
@@ -691,7 +723,7 @@ void Gimbal::ledControl()
             case LED_BLUE:
                 r = 0;
                 g = 0;
-                b = 120;
+                b = 110;
                 break;
             default:
                 break;
@@ -741,19 +773,6 @@ inline void Gimbal::setPitchAngle(const fp32 &targetAngle)
         constrainedAngle = PITCH_UPPER_LIMIT;
     else if (constrainedAngle < PITCH_LOWER_LIMIT)
         constrainedAngle = PITCH_LOWER_LIMIT;
-
-    // // 第二层：根据编码器位置的硬限位（电机保护）
-    // const fp32 currentPitchMotorAngle =
-    //     GSRLMath::normalizeDeltaAngle(m_pitchMotor->getCurrentAngle());
-    // const fp32 pitchError = constrainedAngle - m_eulerAngle.y;
-
-    // // 如果当前已接近硬限位，防止继续往该方向转
-    // if (currentPitchMotorAngle >= PITCH_MOTOR_ENCODER_UPPER_LIMIT_RAD && pitchError > 0.0f) {
-    //     constrainedAngle = m_eulerAngle.y;
-    // } else if (currentPitchMotorAngle <= PITCH_MOTOR_ENCODER_LOWER_LIMIT_RAD && pitchError < 0.0f) {
-    //     constrainedAngle = m_eulerAngle.y;
-    // }
-
     m_pitchTargetAngle = constrainedAngle;
 }
 
