@@ -723,7 +723,7 @@ void Gimbal::ledControl()
             case LED_BLUE:
                 r = 0;
                 g = 0;
-                b = 110;
+                b = 60;
                 break;
             default:
                 break;
