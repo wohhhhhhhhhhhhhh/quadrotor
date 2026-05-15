@@ -357,7 +357,7 @@ void Gimbal::targetOrientationPlan()
         case AUTO_CONTROL:
             if (rxMsgViaUsb.found) {
                 setYawAngle(rxMsgViaUsb.yaw);
-                setPitchAngle(-rxMsgViaUsb.pitch);
+                setPitchAngle(rxMsgViaUsb.pitch);
             }
             break;
 
@@ -577,10 +577,10 @@ void Gimbal::shootControl()
         m_contFireEnable = false;
         m_feederArmed    = false;
 
-        m_shootState      = stateIdle;
-        m_feederTargetRev = 0.0f;
-        m_contFireTimerMs = 0;
-        m_contFirePending = 0;
+        m_shootState       = stateIdle;
+        m_feederTargetRev  = 0.0f;
+        m_contFireTimerMs  = 0;
+        m_contFirePending  = 0;
         m_manualReverseReq = false;
         m_frictionLeftMotor->angularVelocityClosedloopControl(0.0f);
         m_frictionRightMotor->angularVelocityClosedloopControl(0.0f);
