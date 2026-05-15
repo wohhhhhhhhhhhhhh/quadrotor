@@ -136,7 +136,7 @@ void Gimbal::init()
         case LED_BLUE:
             r = 0;
             g = 0;
-            b = 110;
+            b = 25;
             break;
         default:
             break;
@@ -592,7 +592,6 @@ void Gimbal::shootControl()
         } else {
             m_frictionLeftMotor->angularVelocityClosedloopControl(0.0f);
             m_frictionRightMotor->angularVelocityClosedloopControl(0.0f);
-
         }
 
         bool singleShotTrigger = false;
@@ -695,7 +694,7 @@ void Gimbal::rammerStuckControl()
         if (m_needUnjam) {
             if (m_vt13RemoteControl.getKeyboardKeyEvent(VT13RemoteControl::KeyboardKeyIndex::KEY_W) == RemoteControl::KeyEvent::KEY_TOGGLE_RELEASE_PRESS &&
                 m_vt13RemoteControl.getKeyboardKeyStatus(VT13RemoteControl::KeyboardKeyIndex::KEY_CTRL) == RemoteControl::KeyStatus::KEY_PRESS) {
-                m_needUnjam = false;
+                m_needUnjam  = false;
                 m_shootState = stateUnjamming;
             }
         }
@@ -730,7 +729,7 @@ void Gimbal::ledControl()
             case LED_BLUE:
                 r = 0;
                 g = 0;
-                b = 110;
+                b = 25;
                 break;
             default:
                 break;
