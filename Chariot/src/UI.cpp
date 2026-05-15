@@ -375,10 +375,15 @@ void UI::init(UART_HandleTypeDef *huart, uint16_t self_id)
     m_pendingFrictionState = false;
     m_frictionStateCached  = false;
     m_idsValid             = (m_selfId != 0U) && (m_recvId != 0U);
+    m_lastJamState         = false;
 
     // Initialize shoot frame
     memset(&m_shootFrame, 0, sizeof(m_shootFrame));
     m_frictionStateIndicator = &(m_shootFrame.option);
+
+    // Initialize stuck frame
+    memset(&m_stuckFrame, 0, sizeof(m_stuckFrame));
+    m_stuckJam = &(m_stuckFrame.option);
 
     // Initialize state frames
     memset(&m_stateFrameOff, 0, sizeof(m_stateFrameOff));
@@ -431,7 +436,7 @@ HAL_StatusTypeDef UI::sendStringFrame(ui_string_frame_t *msg)
     return sendFrameData((uint8_t *)msg, sizeof(ui_string_frame_t));
 }
 
-void UI::process(uint32_t now, bool isFrictionOn)
+void UI::process(uint32_t now, bool isFrictionOn, bool isJamDetected)
 {
     if (m_huart == nullptr || !m_idsValid) {
         return;
@@ -463,6 +468,7 @@ void UI::process(uint32_t now, bool isFrictionOn)
             m_lastInitSuccessTick = now;
             m_lastFrictionState   = m_pendingFrictionState;
             m_frictionStateCached = true;
+            m_lastJamState        = false;
         }
         return;
     }
@@ -472,18 +478,28 @@ void UI::process(uint32_t now, bool isFrictionOn)
     }
 
     if (m_stateUpdateStep == UIStateUpdateStep::DONE || !isReadyToTransmit(now)) {
+        // Continue to jam handling below so stuck display can react independently.
+    }
+
+    if (m_stateUpdateStep != UIStateUpdateStep::DONE && isReadyToTransmit(now)) {
+        if (sendStateUpdateStep(m_stateUpdateStep) != HAL_OK) {
+            return;
+        }
+
+        markTransmitSuccess(now);
+        m_stateUpdateStep = getNextStateUpdateStep(m_stateUpdateStep);
+        if (m_stateUpdateStep == UIStateUpdateStep::DONE) {
+            m_lastFrictionState   = m_pendingFrictionState;
+            m_frictionStateCached = true;
+        }
         return;
     }
 
-    if (sendStateUpdateStep(m_stateUpdateStep) != HAL_OK) {
-        return;
-    }
-
-    markTransmitSuccess(now);
-    m_stateUpdateStep = getNextStateUpdateStep(m_stateUpdateStep);
-    if (m_stateUpdateStep == UIStateUpdateStep::DONE) {
-        m_lastFrictionState   = m_pendingFrictionState;
-        m_frictionStateCached = true;
+    if (isJamDetected != m_lastJamState && isReadyToTransmit(now)) {
+        if (isJamDetected ? initStuckUI() : removeStuckUI()) {
+            markTransmitSuccess(now);
+            m_lastJamState = isJamDetected;
+        }
     }
 }
 
@@ -540,6 +556,21 @@ HAL_StatusTypeDef UI::removeStateUI()
     }
 
     return sendStateOnUI(3);
+}
+
+HAL_StatusTypeDef UI::initStuckUI()
+{
+    return sendStuckUI(1);
+}
+
+HAL_StatusTypeDef UI::updateStuckUI()
+{
+    return sendStuckUI(2);
+}
+
+HAL_StatusTypeDef UI::removeStuckUI()
+{
+    return sendStuckUI(3);
 }
 
 HAL_StatusTypeDef UI::initRouteUI()
@@ -729,6 +760,28 @@ HAL_StatusTypeDef UI::sendStateOnUI(uint8_t operateType)
 
     procStringFrame(&m_stateFrameOn);
     return sendFrameData((uint8_t *)&m_stateFrameOn, sizeof(m_stateFrameOn));
+}
+
+HAL_StatusTypeDef UI::sendStuckUI(uint8_t operateType)
+{
+    m_stuckFrame.option.figure_name[0] = 'j';
+    m_stuckFrame.option.figure_name[1] = 'a';
+    m_stuckFrame.option.figure_name[2] = 'm';
+    m_stuckFrame.option.operate_type   = operateType;
+
+    m_stuckJam->figure_type  = 7; // String type
+    m_stuckJam->operate_type = operateType;
+    m_stuckJam->layer        = 0;
+    m_stuckJam->color        = 4;
+    m_stuckJam->start_x      = 816;
+    m_stuckJam->start_y      = 748;
+    m_stuckJam->width        = 4;
+    m_stuckJam->font_size    = 40;
+    m_stuckJam->str_length   = 7;
+    strcpy(m_stuckJam->string, "jamming");
+
+    procStringFrame(&m_stuckFrame);
+    return sendFrameData((uint8_t *)&m_stuckFrame, sizeof(m_stuckFrame));
 }
 
 HAL_StatusTypeDef UI::sendRouteUI(uint8_t operateType)

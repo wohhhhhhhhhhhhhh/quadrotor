@@ -155,7 +155,7 @@ public:
     }
 
     void restartInitialization();
-    void process(uint32_t now, bool isFrictionOn);
+    void process(uint32_t now, bool isFrictionOn, bool isJamDetected);
 
     /**
      * @brief Initialize shoot state UI
@@ -192,6 +192,21 @@ public:
      * @brief Remove gimbal state UI
      */
     HAL_StatusTypeDef removeStateUI();
+
+    /**
+     * @brief Initialize stuck UI
+     */
+    HAL_StatusTypeDef initStuckUI();
+
+    /**
+     * @brief Update stuck UI
+     */
+    HAL_StatusTypeDef updateStuckUI();
+
+    /**
+     * @brief Remove stuck UI
+     */
+    HAL_StatusTypeDef removeStuckUI();
 
     /**
      * @brief Initialize route UI (group route)
@@ -243,11 +258,13 @@ private:
     bool m_pendingFrictionState;
     bool m_frictionStateCached;
     bool m_idsValid;
+    bool m_lastJamState;
 
     // UI frame buffers
     ui_string_frame_t m_shootFrame;
     ui_string_frame_t m_stateFrameOff;
     ui_string_frame_t m_stateFrameOn;
+    ui_string_frame_t m_stuckFrame;
     ui_5_frame_t m_routeFrame;
 
     // Route line pointers
@@ -259,6 +276,7 @@ private:
     ui_interface_string_t *m_frictionStateIndicator;
     ui_interface_string_t *m_stateOff;
     ui_interface_string_t *m_stateOn;
+    ui_interface_string_t *m_stuckJam;
 
     /**
      * @brief Send raw frame data via UART
@@ -292,6 +310,7 @@ private:
     HAL_StatusTypeDef sendShootUI(uint8_t operateType);
     HAL_StatusTypeDef sendStateOffUI(uint8_t operateType);
     HAL_StatusTypeDef sendStateOnUI(uint8_t operateType);
+    HAL_StatusTypeDef sendStuckUI(uint8_t operateType);
     HAL_StatusTypeDef sendRouteUI(uint8_t operateType);
 
     /**

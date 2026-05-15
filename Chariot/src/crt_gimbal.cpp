@@ -136,7 +136,7 @@ void Gimbal::init()
         case LED_BLUE:
             r = 0;
             g = 0;
-            b = 120;
+            b = 110;
             break;
         default:
             break;
@@ -165,7 +165,7 @@ void Gimbal::controlLoop()
     transmitGimbalDataViaUsb();
 
     if (g_referee.isConnected() && m_uiInterface->setRobotID(g_referee.getRobotID())) {
-        m_uiInterface->process(HAL_GetTick(), m_frictionState);
+        m_uiInterface->process(HAL_GetTick(), m_frictionState, m_shootState == stateUnjamming);
     }
 }
 
@@ -357,7 +357,7 @@ void Gimbal::targetOrientationPlan()
         case AUTO_CONTROL:
             if (rxMsgViaUsb.found) {
                 setYawAngle(rxMsgViaUsb.yaw);
-                setPitchAngle(rxMsgViaUsb.pitch);
+                setPitchAngle(-rxMsgViaUsb.pitch);
             }
             break;
 
@@ -526,7 +526,6 @@ void Gimbal::pitchControl()
 
         case MANUAL_CONTROL:
         case AUTO_CONTROL: { // 手动控制和自动控制都使用同样的闭环控制
-            // fp32 fdbData[2] = {GSRLMath::normalizeDeltaAngle(m_pitchTargetAngle - m_eulerAngle.y), -m_imu->getGyro().y};
             fp32 fdbData[2] = {m_pitchTargetAngle - m_eulerAngle.y, m_imu->getGyro().y};
             fp32 pidOutput  = m_pitchMotor->externalClosedloopControl(0.0f, fdbData, 2);
 #ifdef PITCH_GRAVITY_COMPENSATE
@@ -659,7 +658,7 @@ void Gimbal::shootControl()
                 }
 
                 // 卡弹检测：独立 void 函数（内部可切换状态到 stateUnjamming）
-                // rammerStuckControl();
+                rammerStuckControl();
 
             } break;
 
@@ -669,7 +668,7 @@ void Gimbal::shootControl()
                 m_rammerMotor->openloopControl(UNJAM_TORQUE);
 
                 // 解卡计时与状态切回：独立 void 函数
-                // rammerStuckControl();
+                rammerStuckControl();
             } break;
         }
     }
@@ -690,7 +689,15 @@ void Gimbal::rammerStuckControl()
         if (m_jamCounter >= JAM_HOLD_TICKS) {
             m_jamCounter   = 0;
             m_unjamCounter = 0;
-            m_shootState   = stateUnjamming;
+            m_needUnjam    = true;
+        }
+
+        if (m_needUnjam) {
+            if (m_vt13RemoteControl.getKeyboardKeyEvent(VT13RemoteControl::KeyboardKeyIndex::KEY_W) == RemoteControl::KeyEvent::KEY_TOGGLE_RELEASE_PRESS &&
+                m_vt13RemoteControl.getKeyboardKeyStatus(VT13RemoteControl::KeyboardKeyIndex::KEY_CTRL) == RemoteControl::KeyStatus::KEY_PRESS) {
+                m_needUnjam = false;
+                m_shootState = stateUnjamming;
+            }
         }
 
     } else if (m_shootState == stateUnjamming) {
@@ -716,14 +723,14 @@ void Gimbal::ledControl()
         uint8_t r = 0, g = 0, b = 0;
         switch (currentLedColor) {
             case LED_RED:
-                r = 255;
+                r = 240;
                 g = 0;
                 b = 0;
                 break;
             case LED_BLUE:
                 r = 0;
                 g = 0;
-                b = 60;
+                b = 110;
                 break;
             default:
                 break;
@@ -768,7 +775,6 @@ inline void Gimbal::setPitchAngle(const fp32 &targetAngle)
 {
     fp32 constrainedAngle = targetAngle;
 
-    // 第一层：目标角度软限位（指令级限制）
     if (constrainedAngle > PITCH_UPPER_LIMIT)
         constrainedAngle = PITCH_UPPER_LIMIT;
     else if (constrainedAngle < PITCH_LOWER_LIMIT)

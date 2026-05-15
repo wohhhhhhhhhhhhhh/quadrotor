@@ -105,6 +105,9 @@ private:
     uint32_t m_jamCounter   = 0;
     uint32_t m_unjamCounter = 0;
 
+    // 解卡请求
+    bool m_needUnjam = false;
+
     // 遥控器
     DR16RemoteControl m_remoteControl;
     VT13RemoteControl m_vt13RemoteControl;
