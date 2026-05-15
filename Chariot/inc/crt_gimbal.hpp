@@ -97,16 +97,10 @@ private:
     enum ShootState : uint8_t {
         stateIdle = 0,
         stateFeeding,
-        stateUnjamming
+        stateReversing
     };
     ShootState m_shootState = stateIdle;
-
-    // 卡弹/解卡计数
-    uint32_t m_jamCounter   = 0;
-    uint32_t m_unjamCounter = 0;
-
-    // 解卡请求
-    bool m_needUnjam = false;
+    bool m_manualReverseReq = false;
 
     // 遥控器
     DR16RemoteControl m_remoteControl;
@@ -164,7 +158,6 @@ private:
     void yawControl();
     void shootControl();
     void ledControl();
-    void rammerStuckControl();
     void transmitGimbalMotorData();
     void transmitGimbalDataViaUsb();
 
