@@ -357,7 +357,7 @@ void Gimbal::targetOrientationPlan()
         case AUTO_CONTROL:
             if (rxMsgViaUsb.found) {
                 setYawAngle(rxMsgViaUsb.yaw);
-                setPitchAngle(-rxMsgViaUsb.pitch);
+                setPitchAngle(rxMsgViaUsb.pitch);
             }
             break;
 
