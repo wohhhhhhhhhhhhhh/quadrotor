@@ -607,9 +607,9 @@ void Gimbal::shootControl()
             m_contFireTimerMs += 1;
             if (m_contFireTimerMs >= CONT_FIRE_PERIOD_MS) {
                 m_contFireTimerMs = 0;
-                if (m_shootState == stateIdle) {
+                if (m_shootState == stateIdle || m_shootState == stateReversing) {
                     singleShotTrigger = true;
-                } else if (m_shootState != stateReversing) {
+                } else {
                     m_contFirePending = 1;
                 }
             }
@@ -667,15 +667,13 @@ void Gimbal::shootControl()
 
             case stateReversing:
             default: {
-                m_rammerMotor->revolutionsClosedloopControl(m_feederTargetRev);
-
-                const fp32 curRev   = m_rammerMotor->getCurrentRevolutions();
-                const fp32 curSpd   = m_rammerMotor->getCurrentAngularVelocity();
-                const fp32 revError = m_feederTargetRev - curRev;
-
-                if (fabsf(revError) < FEED_REV_EPS && fabsf(curSpd) < FEED_SPEED_EPS) {
-                    m_shootState = stateIdle;
+                if (m_feederArmed && m_frictionState && singleShotTrigger) {
+                    m_feederTargetRev = m_rammerMotor->getCurrentRevolutions() + FEED_STEP_REV;
+                    m_shootState      = stateFeeding;
+                    break;
                 }
+
+                m_rammerMotor->revolutionsClosedloopControl(m_feederTargetRev);
             } break;
         }
     }

@@ -40,13 +40,13 @@
 // 云台Pitch电机(DM4310)
 #define PITCH_OUTER_KP                  40.0f // 外环 15.0
 #define PITCH_OUTER_KI                  0.1f  // 0.0
-#define PITCH_OUTER_KD                  80.0f  // 0.0
+#define PITCH_OUTER_KD                  80.0f // 0.0
 #define PITCH_OUTER_OUT_LIMIT           10.0f // 18.0
 #define PITCH_OUTER_IOUT_LIMIT          0.5f  // 0.1
 #define PITCH_INNER_KP                  0.65f // 内环 0.35
 #define PITCH_INNER_KI                  0.0f  // 0.0
-#define PITCH_INNER_KD                  0.05f  // 0.05
-#define PITCH_INNER_OUT_LIMIT           10.0f  // 5.0
+#define PITCH_INNER_KD                  0.05f // 0.05
+#define PITCH_INNER_OUT_LIMIT           10.0f // 5.0
 #define PITCH_INNER_IOUT_LIMIT          0.0f  // 0.0
 #define PITCH_INNER_LOWPASS_FILTER_PARA 0.9f  // 1.0
 // 重力补偿前馈（Nm）
