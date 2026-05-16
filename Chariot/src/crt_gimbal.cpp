@@ -165,7 +165,7 @@ void Gimbal::controlLoop()
     transmitGimbalDataViaUsb();
 
     if (g_referee.isConnected() && m_uiInterface->setRobotID(g_referee.getRobotID())) {
-        m_uiInterface->process(HAL_GetTick(), m_frictionState, m_shootState == stateUnjamming);
+        m_uiInterface->process(HAL_GetTick(), m_frictionState, m_shootState == stateReversing);
     }
 }
 
@@ -468,6 +468,10 @@ void Gimbal::shootPlan()
     }
 
     if (vt13ControlEnabled) {
+        if (m_vt13RemoteControl.getKeyboardKeyEvent(VT13RemoteControl::KeyboardKeyIndex::KEY_Z) == RemoteControl::KeyEvent::KEY_TOGGLE_RELEASE_PRESS) {
+            m_manualReverseReq = true;
+        }
+
         if (m_vt13RemoteControl.getKeyboardKeyEvent(VT13RemoteControl::KeyboardKeyIndex::KEY_X) == RemoteControl::KeyEvent::KEY_TOGGLE_RELEASE_PRESS) {
             if (m_vt13RemoteControl.getKeyboardKeyStatus(VT13RemoteControl::KeyboardKeyIndex::KEY_CTRL) == RemoteControl::KeyStatus::KEY_PRESS) {
                 m_frictionState = false;
@@ -573,13 +577,11 @@ void Gimbal::shootControl()
         m_contFireEnable = false;
         m_feederArmed    = false;
 
-        m_shootState      = stateIdle;
-        m_feederTargetRev = 0.0f;
-        m_contFireTimerMs = 0;
-        m_contFirePending = 0;
-
-        m_jamCounter   = 0;
-        m_unjamCounter = 0;
+        m_shootState       = stateIdle;
+        m_feederTargetRev  = 0.0f;
+        m_contFireTimerMs  = 0;
+        m_contFirePending  = 0;
+        m_manualReverseReq = false;
         m_frictionLeftMotor->angularVelocityClosedloopControl(0.0f);
         m_frictionRightMotor->angularVelocityClosedloopControl(0.0f);
 
@@ -605,7 +607,7 @@ void Gimbal::shootControl()
             m_contFireTimerMs += 1;
             if (m_contFireTimerMs >= CONT_FIRE_PERIOD_MS) {
                 m_contFireTimerMs = 0;
-                if (m_shootState == stateIdle) {
+                if (m_shootState == stateIdle || m_shootState == stateReversing) {
                     singleShotTrigger = true;
                 } else {
                     m_contFirePending = 1;
@@ -616,11 +618,17 @@ void Gimbal::shootControl()
             m_contFirePending = 0;
         }
 
+        if (m_manualReverseReq) {
+            m_manualReverseReq = false;
+            m_singleShotReq    = false;
+            m_contFirePending  = 0;
+            m_feederTargetRev  = m_rammerMotor->getCurrentRevolutions() - FEED_STEP_REV;
+            m_shootState       = stateReversing;
+        }
+
         switch (m_shootState) {
 
             case stateIdle: {
-                m_jamCounter = 0;
-
                 // 未允许拨弹 or 摩擦轮未开：拨弹停
                 if (!m_feederArmed || !m_frictionState) {
                     m_rammerMotor->openloopControl(0.0f);
@@ -652,59 +660,21 @@ void Gimbal::shootControl()
                 // 到位判定
                 if (fabsf(revError) < FEED_REV_EPS && fabsf(curSpd) < FEED_SPEED_EPS) {
                     m_shootState = stateIdle;
-                    m_jamCounter = 0;
                     break;
                 }
 
-                // 卡弹检测：独立 void 函数（内部可切换状态到 stateUnjamming）
-                rammerStuckControl();
-
             } break;
 
-            case stateUnjamming:
+            case stateReversing:
             default: {
-                // 解卡动作：建议用 openloop 给反向电流/电压（不走位置环）
-                m_rammerMotor->openloopControl(UNJAM_TORQUE);
+                if (m_feederArmed && m_frictionState && singleShotTrigger) {
+                    m_feederTargetRev = m_rammerMotor->getCurrentRevolutions() + FEED_STEP_REV;
+                    m_shootState      = stateFeeding;
+                    break;
+                }
 
-                // 解卡计时与状态切回：独立 void 函数
-                rammerStuckControl();
+                m_rammerMotor->revolutionsClosedloopControl(m_feederTargetRev);
             } break;
-        }
-    }
-}
-
-void Gimbal::rammerStuckControl()
-{
-    if (m_shootState == stateFeeding) {
-
-        const fp32 curSpd  = m_rammerMotor->getCurrentAngularVelocity();
-        const bool jamCond = (fabsf(curSpd) < JAM_SPEED_TH);
-
-        if (jamCond)
-            m_jamCounter++;
-        else
-            m_jamCounter = 0;
-
-        if (m_jamCounter >= JAM_HOLD_TICKS) {
-            m_jamCounter   = 0;
-            m_unjamCounter = 0;
-            m_needUnjam    = true;
-        }
-
-        if (m_needUnjam) {
-            if (m_vt13RemoteControl.getKeyboardKeyEvent(VT13RemoteControl::KeyboardKeyIndex::KEY_W) == RemoteControl::KeyEvent::KEY_TOGGLE_RELEASE_PRESS &&
-                m_vt13RemoteControl.getKeyboardKeyStatus(VT13RemoteControl::KeyboardKeyIndex::KEY_CTRL) == RemoteControl::KeyStatus::KEY_PRESS) {
-                m_needUnjam  = false;
-                m_shootState = stateUnjamming;
-            }
-        }
-
-    } else if (m_shootState == stateUnjamming) {
-
-        m_unjamCounter++;
-        if (m_unjamCounter >= UNJAM_TICKS) {
-            m_unjamCounter = 0;
-            m_shootState   = stateFeeding; // 解卡完成，回去继续这发
         }
     }
 }
